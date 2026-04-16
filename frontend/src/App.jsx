@@ -28,6 +28,7 @@ import { useLanguage } from './context/LanguageContext';
 import { useTheme } from './context/ThemeContext';
 import { useAuth } from './context/AuthContext';
 import Logo from './components/Logo';
+import ReloadPrompt from './components/ReloadPrompt';
 
 // Nav items visible to admin + manager
 const navItems = [
@@ -302,19 +303,51 @@ function PendingScreen({ lang }) {
     );
 }
 
-// Loading screen
+// Native-like Splash / Loading Screen
 function LoadingScreen() {
     return (
         <div style={{
             minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: 'var(--bg)', flexDirection: 'column', gap: 16,
+            background: 'var(--bg)', flexDirection: 'column', gap: 24,
+            animation: 'fadeIn 0.5s ease-out'
         }}>
             <div style={{
-                width: 44, height: 44, border: '3px solid var(--border)',
-                borderTopColor: 'var(--primary)', borderRadius: '50%',
-                animation: 'spin 0.8s linear infinite',
-            }} />
-            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                background: 'linear-gradient(135deg, var(--primary), var(--secondary))',
+                width: 80, height: 80, borderRadius: 20, display: 'flex',
+                alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 10px 25px rgba(79,70,229,0.3)',
+                animation: 'pulseSplash 2s infinite ease-in-out'
+            }}>
+                <Globe size={40} color="white" />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                <h1 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 800, color: 'var(--text)', letterSpacing: '-0.02em' }}>
+                    Payroll<span style={{ color: 'var(--primary)' }}>Pro</span>
+                </h1>
+                <div style={{ width: 140, height: 4, background: 'var(--border)', borderRadius: 4, overflow: 'hidden' }}>
+                    <div style={{ 
+                        height: '100%', background: 'var(--primary)', width: '30%', borderRadius: 4,
+                        animation: 'loadingBarSplash 1.5s infinite ease-in-out'
+                    }} />
+                </div>
+            </div>
+
+            <style>{`
+                @keyframes pulseSplash {
+                    0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(79,70,229, 0.4); }
+                    70% { transform: scale(1.05); box-shadow: 0 0 0 15px rgba(79,70,229, 0); }
+                    100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(79,70,229, 0); }
+                }
+                @keyframes loadingBarSplash {
+                    0% { transform: translateX(-100%); }
+                    100% { transform: translateX(330%); }
+                }
+                @keyframes fadeIn {
+                    from { opacity: 0; }
+                    to { opacity: 1; }
+                }
+            `}</style>
         </div>
     );
 }
@@ -337,6 +370,7 @@ export default function App() {
     return (
         <BrowserRouter>
             <Toaster position="top-right" toastOptions={{ style: toastStyle, duration: 3500 }} />
+            <ReloadPrompt />
             <div className="app-layout">
                 <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
                 <main className="main-content">
