@@ -1,0 +1,102 @@
+version: "2"
+type: frontend
+tech_stack:
+  - React 18
+  - Vite
+  - React Router v6
+  - Lucide React (icons)
+  - react-hot-toast
+  - InsForge SDK
+  - CSS Variables (custom dark theme)
+  - i18n (Arabic/English bilingual)
+features:
+  - name: Dashboard
+    description: Overview of attendance stats, top performers, and attendance records for today
+    files:
+      - frontend/src/pages/Dashboard.jsx
+    pages:
+      - path: /
+        description: Main dashboard with KPI cards, today's attendance and top performers sections
+        auth_required: false
+
+  - name: Employee Management
+    description: CRUD operations for employees including salary components, allowances, and position info
+    files:
+      - frontend/src/pages/Employees.jsx
+    pages:
+      - path: /employees
+        description: Employee list with add, edit, delete, and search functionality
+        auth_required: false
+
+  - name: Attendance Tracking
+    description: Mark and view daily employee attendance with check-in/check-out times and break tracking
+    files:
+      - frontend/src/pages/Attendance.jsx
+    pages:
+      - path: /attendance
+        description: Attendance form with employee selector, date, status (present/absent/leave/sick/excused), check-in/out times
+        auth_required: false
+
+  - name: Warning Letters
+    description: Issue and manage warning letters for employees with PDF generation support
+    files:
+      - frontend/src/pages/Warnings.jsx
+    pages:
+      - path: /warnings
+        description: Warning letter form with employee selector, type, and description; list of issued warnings
+        auth_required: false
+
+  - name: Performance Evaluation
+    description: Calculate and rank employee performance based on attendance and KPI metrics
+    files:
+      - frontend/src/pages/Performance.jsx
+    pages:
+      - path: /performance
+        description: Performance calculator with employee rankings and monthly/weekly stats
+        auth_required: false
+
+  - name: Payroll
+    description: Generate payslips based on base salary, housing/transport allowances, annual incentive, and attendance deductions
+    files:
+      - frontend/src/pages/Payroll.jsx
+    pages:
+      - path: /payroll
+        description: Payroll generation form with payslip preview and print functionality
+        auth_required: false
+
+  - name: Settings
+    description: Application settings including theme, language, and company information
+    files:
+      - frontend/src/pages/SettingsPage.jsx
+    pages:
+      - path: /settings
+        description: Settings panel for company name, logo, currency, and app preferences
+        auth_required: false
+
+  - name: Sidebar Navigation
+    description: Persistent sidebar with grouped navigation links and language toggle (EN/AR)
+    files:
+      - frontend/src/App.jsx
+      - frontend/src/components/Logo.jsx
+    pages:
+      - path: "*"
+        description: Sidebar visible on all routes with PayrollPro logo, nav sections, and language switcher
+        auth_required: false
+
+  - name: Bilingual Support (i18n)
+    description: Full Arabic/English language switching with RTL layout support
+    files:
+      - frontend/src/i18n/translations.js
+      - frontend/src/context/LanguageContext.jsx
+    pages:
+      - path: "*"
+        description: Language toggle button in sidebar footer; all UI text translated
+        auth_required: false
+
+known_limitations:
+  - issue: No authentication system; all pages are publicly accessible
+    location: frontend/src/App.jsx
+    impact: Any user can access all data without login
+  - issue: Backend uses local Node.js/Express with SQLite — not deployed
+    location: backend/server.js
+    impact: App only works locally
