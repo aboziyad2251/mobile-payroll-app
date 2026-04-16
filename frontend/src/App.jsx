@@ -6,6 +6,7 @@ import {
     TrendingUp, DollarSign, Settings, Menu, Globe,
     LogOut, User, ShieldCheck, CalendarDays, BarChart2, Briefcase, CalendarRange,
     Bell, CheckCheck, CalendarCheck, CalendarX,
+    Search, LayoutGrid, ShoppingCart, Fingerprint
 } from 'lucide-react';
 import { getNotifications, markNotificationRead, markAllNotificationsRead } from './services/api';
 
@@ -352,10 +353,40 @@ function LoadingScreen() {
     );
 }
 
+function BottomNav() {
+    const { lang } = useLanguage();
+    const isAr = lang === 'ar';
+    return (
+        <nav className="bottom-nav" dir={isAr ? 'rtl' : 'ltr'}>
+            <NavLink to="/" end className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}>
+                <LayoutDashboard className="nav-icon" />
+                <span>{isAr ? 'الرئيسية' : 'Home'}</span>
+            </NavLink>
+            <NavLink to="/employees" className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}>
+                <Search className="nav-icon" />
+                <span>{isAr ? 'البحث' : 'Search'}</span>
+            </NavLink>
+            
+            <NavLink to="/attendance" className="bottom-nav-fab">
+                <Fingerprint size={32} />
+            </NavLink>
+
+            <NavLink to="/leaves" className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}>
+                <LayoutGrid className="nav-icon" />
+                <span>{isAr ? 'الخدمات' : 'Services'}</span>
+            </NavLink>
+            <NavLink to="/settings" className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}>
+                <ShoppingCart className="nav-icon" />
+                <span>{isAr ? 'المتجر' : 'Store'}</span>
+            </NavLink>
+        </nav>
+    );
+}
+
 export default function App() {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const { lang } = useLanguage();
-    const { user, role, loading } = useAuth();
+    const { user, role, loading, fullName } = useAuth();
 
     // Dynamic toast style based on theme
     const toastStyle = {
@@ -375,11 +406,16 @@ export default function App() {
                 <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
                 <main className="main-content">
                     <div className="mobile-header">
-                        <button className="btn btn-ghost btn-icon" onClick={() => setSidebarOpen(true)}>
-                            <Menu size={22} />
-                        </button>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'linear-gradient(135deg, var(--primary), var(--secondary))', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
+                                <User size={20} />
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{lang === 'ar' ? 'مرحباً بك' : 'Welcome'} 👋</span>
+                                <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text)' }}>{fullName || 'User'}</span>
+                            </div>
+                        </div>
                         <Logo lang={lang} size="sm" />
-                        <div />
                     </div>
                     <Routes>
                         <Route path="/" element={<Dashboard />} />
@@ -395,6 +431,7 @@ export default function App() {
                         <Route path="/settings" element={<SettingsPage />} />
                         {role === 'admin' && <Route path="/users" element={<UsersPage />} />}
                     </Routes>
+                    <BottomNav />
                 </main>
             </div>
         </BrowserRouter>
