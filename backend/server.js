@@ -27,6 +27,14 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Serve frontend application in production
+app.use(express.static(path.join(__dirname, 'public')));
+
+// SPA Catch-all Error handling (Must be defined AFTER static files and APIs)
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error(err.stack);

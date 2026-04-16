@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: mobile-payroll-app
+    restart: unless-stopped
+    ports:
+      - "3005:3001"
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      # Add database environment variables if needed:
+      #- DB_HOST=...
+      #- DB_USER=...
+      #- DB_PASSWORD=...
+      #- DB_NAME=...
