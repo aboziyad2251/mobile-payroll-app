@@ -350,14 +350,13 @@ tbody tr:last-child { border-bottom: none; }
 }
 .bottom-nav-fab:hover { transform: translateY(-3px); box-shadow: 0 8px 25px rgba(99,102,241, 0.7); }
 
-/* ---- RESPONSIVE ---- */
-@media (max-width: 768px) {
-  .sidebar { display: none !important; }
-  .main-content { margin-left: 0; padding: 16px 16px 90px 16px !important; }
-  .form-row, .form-row-3, .grid-2, .grid-3 { grid-template-columns: 1fr; }
-  .stat-grid { grid-template-columns: 1fr 1fr; }
-  .bottom-nav { display: flex; }
-}
+/* ---- MOBILE-FIRST LAYOUT (this is a mobile app — no desktop sidebar) ---- */
+.sidebar { display: none !important; }
+.main-content { margin-left: 0 !important; margin-right: 0 !important; padding: 16px 16px 90px 16px !important; }
+.bottom-nav { display: flex; }
+.form-row, .form-row-3 { grid-template-columns: 1fr; }
+.grid-2, .grid-3 { grid-template-columns: 1fr; }
+.stat-grid { grid-template-columns: 1fr 1fr; }
 
 /* ---- MOBILE HEADER ---- */
 .mobile-header {
@@ -368,7 +367,6 @@ tbody tr:last-child { border-bottom: none; }
   background: transparent;
   margin: -16px -16px 20px -16px;
 }
-@media (min-width: 769px) { .mobile-header { display: none !important; } }
 
 /* ---- LANGUAGE TOGGLE BUTTON ---- */
 .lang-toggle-btn {
@@ -470,12 +468,114 @@ tbody tr:last-child { border-bottom: none; }
   text-align: right;
 }
 
-/* RTL mobile sidebar */
-@media (max-width: 768px) {
-  [dir="rtl"] .sidebar { right: -260px; left: auto; }
-  [dir="rtl"] .sidebar.open { right: 0; left: auto; }
-  [dir="rtl"] .main-content { margin-right: 0; }
-  [dir="rtl"] .mobile-header { flex-direction: row-reverse; }
+/* RTL mobile layout */
+[dir="rtl"] .main-content { margin-right: 0 !important; }
+[dir="rtl"] .mobile-header { flex-direction: row-reverse; }
+
+/* ==============================
+   ESSHUB DESIGN COMPONENTS
+   ============================== */
+
+/* Hero Card */
+.esshub-hero {
+  position: relative;
+  background: linear-gradient(135deg, #4c1d95 0%, #5c2d91 45%, #7c3aed 100%);
+  border-radius: 24px;
+  padding: 24px 20px 20px;
+  margin-bottom: 20px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(124,58,237,0.45);
+}
+.esshub-hero-deco1 {
+  position: absolute; top: -40px; right: -40px;
+  width: 140px; height: 140px; border-radius: 50%;
+  background: rgba(255,255,255,0.06);
+}
+.esshub-hero-deco2 {
+  position: absolute; bottom: -25px; left: -25px;
+  width: 90px; height: 90px; border-radius: 50%;
+  background: rgba(255,255,255,0.05);
+}
+.esshub-hero-deco3 {
+  position: absolute; top: 20px; left: 30%;
+  width: 60px; height: 60px; border-radius: 50%;
+  background: rgba(255,255,255,0.04);
+}
+.esshub-hero-label {
+  font-size: 0.75rem; color: rgba(255,255,255,0.65);
+  font-weight: 500; margin-bottom: 4px;
+}
+.esshub-hero-value {
+  font-size: 2.2rem; font-weight: 800; color: #fff;
+  line-height: 1; margin-bottom: 4px;
+}
+.esshub-hero-unit { font-size: 1rem; font-weight: 600; }
+.esshub-hero-date {
+  font-size: 0.78rem; color: rgba(255,255,255,0.55);
+  margin-bottom: 16px;
+}
+.esshub-hero-pills {
+  display: flex; gap: 8px; flex-wrap: wrap;
+}
+.esshub-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 999px; padding: 4px 12px;
+  font-size: 0.72rem; color: #fff; font-weight: 600;
+}
+
+/* Overview Cards */
+.esshub-overview {
+  display: flex; flex-direction: column; gap: 10px;
+  margin-bottom: 24px;
+}
+.esshub-overview-card {
+  display: flex; align-items: center; gap: 14px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 18px; padding: 14px 16px;
+  text-decoration: none; color: inherit;
+  transition: var(--transition);
+}
+.esshub-overview-card:hover { border-color: var(--border-light); transform: translateY(-1px); }
+
+/* Section Header */
+.esshub-section-header {
+  display: flex; align-items: center; justify-content: space-between;
+  font-size: 0.88rem; font-weight: 700; color: var(--text);
+  margin-bottom: 14px;
+}
+
+/* Quick Access scroll row */
+.esshub-quick-scroll {
+  display: flex; gap: 14px; overflow-x: auto;
+  padding-bottom: 6px; scrollbar-width: none;
+}
+.esshub-quick-scroll::-webkit-scrollbar { display: none; }
+.esshub-quick-item {
+  display: flex; flex-direction: column; align-items: center; gap: 7px;
+  flex-shrink: 0; width: 68px; text-decoration: none;
+}
+.esshub-quick-label {
+  font-size: 0.64rem; color: var(--text-muted); font-weight: 600;
+  text-align: center; line-height: 1.2;
+}
+
+/* Stats Strip */
+.esshub-stats-strip {
+  display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 10px;
+}
+.esshub-stat-chip {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 16px; padding: 12px 8px;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+}
+
+/* Mobile header improvements */
+.mobile-header {
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 16px;
 }
 
 /* ── smooth theme transition ── */

@@ -1,121 +1,155 @@
 import React, { useEffect, useState } from 'react';
-import { Users, Clock, AlertTriangle, TrendingUp, DollarSign, Award, UserCheck, UserX } from 'lucide-react';
-import { getTodayAttendance, getTopPerformers } from '../services/api';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts';
+import { Link } from 'react-router-dom';
+import {
+    Clock, Users, CalendarDays, DollarSign, TrendingUp,
+    Briefcase, AlertTriangle, BarChart2, CalendarRange, ChevronRight,
+    UserCheck, UserX
+} from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { useAuth } from '../context/AuthContext';
+import { getTodayAttendance } from '../services/api';
+import client from '../lib/insforge';
 
-const COLORS = ['#10b981', '#ef4444', '#0ea5e9', '#f59e0b', '#8b5cf6', '#4f46e5'];
-
-const getRatingClass = (r) => ({
-    Excellent: 'badge-excellent', Good: 'badge-good',
-    Average: 'badge-average', 'Needs Improvement': 'badge-poor', Poor: 'badge-poor'
-}[r] || 'badge-info');
+const quickItems = (isAr) => [
+    { icon: Clock,        label: isAr ? 'الحضور'    : 'Attendance',  to: '/attendance',   g: 'linear-gradient(135deg,#5b21b6,#7c3aed)' },
+    { icon: CalendarDays, label: isAr ? 'الإجازات'   : 'Leaves',      to: '/leaves',       g: 'linear-gradient(135deg,#0369a1,#0ea5e9)' },
+    { icon: Users,        label: isAr ? 'الموظفون'   : 'Employees',   to: '/employees',    g: 'linear-gradient(135deg,#065f46,#10b981)' },
+    { icon: DollarSign,   label: isAr ? 'الرواتب'    : 'Payroll',     to: '/payroll',      g: 'linear-gradient(135deg,#92400e,#f59e0b)' },
+    { icon: TrendingUp,   label: isAr ? 'الأداء'     : 'Performance', to: '/performance',  g: 'linear-gradient(135deg,#9f1239,#ef4444)' },
+    { icon: Briefcase,    label: isAr ? 'التوظيف'    : 'Recruitment', to: '/recruitment',  g: 'linear-gradient(135deg,#4c1d95,#8b5cf6)' },
+    { icon: BarChart2,    label: isAr ? 'التقارير'   : 'Reports',     to: '/reports',      g: 'linear-gradient(135deg,#164e63,#06b6d4)' },
+    { icon: AlertTriangle,label: isAr ? 'التحذيرات'  : 'Warnings',    to: '/warnings',     g: 'linear-gradient(135deg,#7f1d1d,#dc2626)' },
+    { icon: CalendarRange,label: isAr ? 'الجدول'     : 'Schedule',    to: '/schedule',     g: 'linear-gradient(135deg,#14532d,#16a34a)' },
+];
 
 export default function Dashboard() {
-    const { t, lang } = useLanguage();
-    const [attendance, setAttendance] = useState(null);
-    const [topPerformers, setTopPerformers] = useState([]);
+    const { lang } = useLanguage();
+    const { fullName } = useAuth();
+    const [att, setAtt] = useState(null);
+    const [pendingLeaves, setPendingLeaves] = useState(0);
     const [loading, setLoading] = useState(true);
+    const isAr = lang === 'ar';
     const now = new Date();
 
     useEffect(() => {
-        Promise.all([
+        Promise.allSettled([
             getTodayAttendance(),
-            getTopPerformers({ period: 'monthly', limit: 5 })
-        ]).then(([att, perf]) => {
-            setAttendance(att.data);
-            setTopPerformers(perf.data || []);
+            client.database.from('leave_requests').select('id', { count: 'exact' }).eq('status', 'pending'),
+        ]).then(([attRes, leavesRes]) => {
+            if (attRes.status === 'fulfilled') setAtt(attRes.value.data);
+            if (leavesRes.status === 'fulfilled') setPendingLeaves(leavesRes.value.data?.length || 0);
         }).finally(() => setLoading(false));
     }, []);
 
-    const attPieData = attendance ? [
-        { name: t('att.present'), value: attendance.present || 0 },
-        { name: t('att.absent'), value: attendance.absent || 0 },
-        { name: t('dash.onLeave'), value: (attendance.annual_leave || 0) + (attendance.sick_leave || 0) + (attendance.emergency_leave || 0) },
-        { name: t('att.excused'), value: attendance.excused || 0 },
-    ].filter(d => d.value > 0) : [];
-
     const greeting = now.getHours() < 12
-        ? t('dash.morning')
-        : now.getHours() < 17 ? t('dash.afternoon') : t('dash.evening');
+        ? (isAr ? 'صباح الخير' : 'Good Morning')
+        : now.getHours() < 17
+            ? (isAr ? 'مساء الخير' : 'Good Afternoon')
+            : (isAr ? 'مساء النور' : 'Good Evening');
 
-    if (loading) return <div className="loading" style={{ padding: '60px', textAlign: 'center', color: 'var(--text-muted)' }}>{t('common.loading')}</div>;
+    const onLeave = (att?.annual_leave || 0) + (att?.sick_leave || 0) + (att?.emergency_leave || 0);
+
+    if (loading) return (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '50vh', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+            {isAr ? 'جاري التحميل...' : 'Loading...'}
+        </div>
+    );
 
     return (
-        <div>
-            <div className="page-header">
-                <div>
-                    <h1 className="page-title">{greeting}</h1>
-                    <p className="page-subtitle">{now.toLocaleDateString(lang === 'ar' ? 'ar-SA' : 'en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+        <div dir={isAr ? 'rtl' : 'ltr'} style={{ animation: 'fadeIn 0.3s ease' }}>
+
+            {/* ── Hero Card ─────────────────────────────── */}
+            <div className="esshub-hero">
+                <div className="esshub-hero-deco1" />
+                <div className="esshub-hero-deco2" />
+                <div className="esshub-hero-deco3" />
+
+                <div style={{ position: 'relative', zIndex: 1 }}>
+                    <p className="esshub-hero-label">
+                        {isAr ? 'ملخص اليوم' : "Today's Summary"}
+                    </p>
+                    <h2 className="esshub-hero-value">
+                        {att?.total_employees || 0}
+                        <span className="esshub-hero-unit">{isAr ? ' موظف' : ' Employees'}</span>
+                    </h2>
+                    <p className="esshub-hero-date">
+                        {now.toLocaleDateString(isAr ? 'ar-SA' : 'en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                    </p>
+
+                    <div className="esshub-hero-pills">
+                        {[
+                            { label: isAr ? 'حاضر' : 'Present',  count: att?.present || 0,  dot: '#34d399' },
+                            { label: isAr ? 'غائب' : 'Absent',   count: att?.absent || 0,   dot: '#f87171' },
+                            { label: isAr ? 'إجازة' : 'On Leave', count: onLeave,            dot: '#60a5fa' },
+                            { label: isAr ? 'معذور' : 'Excused',  count: att?.excused || 0,  dot: '#a78bfa' },
+                        ].map(({ label, count, dot }) => (
+                            <span key={label} className="esshub-pill">
+                                <span style={{ width: 7, height: 7, borderRadius: '50%', background: dot, display: 'inline-block', flexShrink: 0 }} />
+                                {label} {count}
+                            </span>
+                        ))}
+                    </div>
                 </div>
             </div>
 
-            <div className="stat-grid">
+            {/* ── Overview Cards ────────────────────────── */}
+            <div className="esshub-overview">
                 {[
-                    { label: t('dash.totalEmployees'), value: attendance?.total_employees || 0, icon: Users, color: '#4f46e5', bg: 'rgba(79,70,229,0.15)' },
-                    { label: t('dash.presentToday'), value: attendance?.present || 0, icon: UserCheck, color: '#10b981', bg: 'rgba(16,185,129,0.15)' },
-                    { label: t('dash.absentToday'), value: attendance?.absent || 0, icon: UserX, color: '#ef4444', bg: 'rgba(239,68,68,0.15)' },
-                    { label: t('dash.onLeave'), value: (attendance?.annual_leave || 0) + (attendance?.sick_leave || 0) + (attendance?.emergency_leave || 0), icon: Clock, color: '#f59e0b', bg: 'rgba(245,158,11,0.15)' },
-                    { label: t('dash.sickLeave'), value: attendance?.sick_leave || 0, icon: AlertTriangle, color: '#ef4444', bg: 'rgba(239,68,68,0.1)' },
-                    { label: t('dash.excused'), value: attendance?.excused || 0, icon: Award, color: '#8b5cf6', bg: 'rgba(139,92,246,0.15)' },
-                ].map(({ label, value, icon: Icon, color, bg }) => (
-                    <div className="stat-card" key={label}>
-                        <div className="stat-icon" style={{ background: bg }}>
+                    { icon: UserCheck, label: isAr ? 'الحاضرون اليوم' : 'Present Today',  value: att?.present || 0,  color: '#34d399', bg: 'rgba(52,211,153,0.12)',  to: '/attendance' },
+                    { icon: UserX,     label: isAr ? 'الغائبون اليوم' : 'Absent Today',   value: att?.absent || 0,   color: '#f87171', bg: 'rgba(248,113,113,0.12)', to: '/attendance' },
+                    { icon: CalendarDays, label: isAr ? 'في إجازة'    : 'On Leave',       value: onLeave,            color: '#60a5fa', bg: 'rgba(96,165,250,0.12)',  to: '/leaves' },
+                    { icon: AlertTriangle, label: isAr ? 'طلبات معلقة' : 'Pending Leaves', value: pendingLeaves,      color: '#fbbf24', bg: 'rgba(251,191,36,0.12)',  to: '/leaves' },
+                ].map(({ icon: Icon, label, value, color, bg, to }) => (
+                    <Link key={label} to={to} className="esshub-overview-card">
+                        <div style={{ width: 44, height: 44, borderRadius: 14, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                             <Icon size={20} color={color} />
                         </div>
-                        <div className="stat-info">
-                            <h3 style={{ color }}>{value}</h3>
-                            <p>{label}</p>
+                        <div>
+                            <div style={{ fontSize: '1.6rem', fontWeight: 800, color, lineHeight: 1 }}>{value}</div>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 3 }}>{label}</div>
                         </div>
-                    </div>
+                        <ChevronRight size={16} color="var(--text-dim)" style={{ marginLeft: 'auto', flexShrink: 0, transform: isAr ? 'rotate(180deg)' : 'none' }} />
+                    </Link>
                 ))}
             </div>
 
-            <div className="grid-2">
-                {/* Attendance Pie Chart */}
-                <div className="card">
-                    <div className="card-header">
-                        <div><div className="card-title">{t('dash.todayAttendance')}</div><div className="card-subtitle">{attendance?.date}</div></div>
-                    </div>
-                    {attPieData.length > 0 ? (
-                        <ResponsiveContainer width="100%" height={220}>
-                            <PieChart>
-                                <Pie data={attPieData} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={4} dataKey="value">
-                                    {attPieData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
-                                </Pie>
-                                <Tooltip contentStyle={{ background: '#1e1e38', border: '1px solid #2e2e52', borderRadius: 8 }} />
-                                <Legend />
-                            </PieChart>
-                        </ResponsiveContainer>
-                    ) : <div className="empty-state"><p>{t('dash.noAttendance')}</p></div>}
+            {/* ── Quick Access ──────────────────────────── */}
+            <div style={{ marginBottom: 24 }}>
+                <div className="esshub-section-header">
+                    <span>{isAr ? 'الوصول السريع' : 'Quick Access'}</span>
                 </div>
-
-                {/* Top Performers */}
-                <div className="card">
-                    <div className="card-header">
-                        <div><div className="card-title">{t('dash.topPerformers')}</div><div className="card-subtitle">{t('dash.monthlyRanking')}</div></div>
-                    </div>
-                    {topPerformers.length === 0
-                        ? <div className="empty-state"><p>{t('dash.noPerformance')}<br />{t('dash.calculateFirst')}</p></div>
-                        : <div>
-                            {topPerformers.map((p, i) => (
-                                <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: i < topPerformers.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                                    <span className={`rank-badge ${i === 0 ? 'rank-1' : i === 1 ? 'rank-2' : i === 2 ? 'rank-3' : 'rank-other'}`}>{i + 1}</span>
-                                    <div style={{ flex: 1 }}>
-                                        <div style={{ fontWeight: 600, fontSize: '0.88rem' }}>{p.first_name} {p.last_name}</div>
-                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{p.department}</div>
-                                        <div className="score-bar" style={{ marginTop: 4 }}>
-                                            <div className={`score-fill ${p.total_score >= 90 ? 'score-excellent' : p.total_score >= 75 ? 'score-good' : p.total_score >= 60 ? 'score-average' : 'score-poor'}`}
-                                                style={{ width: `${p.total_score}%` }} />
-                                        </div>
-                                    </div>
-                                    <span className={`badge ${getRatingClass(p.rating)}`}>{p.total_score?.toFixed(1)}%</span>
-                                </div>
-                            ))}
-                        </div>
-                    }
+                <div className="esshub-quick-scroll">
+                    {quickItems(isAr).map(({ icon: Icon, label, to, g }) => (
+                        <Link key={to} to={to} className="esshub-quick-item">
+                            <div style={{ width: 56, height: 56, borderRadius: 18, background: g, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 16px rgba(0,0,0,0.35)' }}>
+                                <Icon size={22} color="white" />
+                            </div>
+                            <span className="esshub-quick-label">{label}</span>
+                        </Link>
+                    ))}
                 </div>
             </div>
+
+            {/* ── Stats Strip ───────────────────────────── */}
+            <div style={{ marginBottom: 16 }}>
+                <div className="esshub-section-header">
+                    <span>{isAr ? 'إحصائيات سريعة' : 'Quick Stats'}</span>
+                </div>
+                <div className="esshub-stats-strip">
+                    {[
+                        { label: isAr ? 'إجمالي الموظفين' : 'Total Staff',   value: att?.total_employees || 0, color: '#818cf8' },
+                        { label: isAr ? 'إجازة مرضية'      : 'Sick Leave',    value: att?.sick_leave || 0,      color: '#f87171' },
+                        { label: isAr ? 'إجازة سنوية'      : 'Annual Leave',  value: att?.annual_leave || 0,    color: '#60a5fa' },
+                        { label: isAr ? 'طوارئ'            : 'Emergency',     value: att?.emergency_leave || 0, color: '#fbbf24' },
+                    ].map(({ label, value, color }) => (
+                        <div key={label} className="esshub-stat-chip" style={{ '--chip-color': color }}>
+                            <span style={{ fontSize: '1.3rem', fontWeight: 800, color }}>{value}</span>
+                            <span style={{ fontSize: '0.62rem', color: 'var(--text-dim)', textAlign: 'center', lineHeight: 1.3 }}>{label}</span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
         </div>
     );
 }

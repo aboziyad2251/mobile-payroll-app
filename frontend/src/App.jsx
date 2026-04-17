@@ -355,31 +355,71 @@ function LoadingScreen() {
 
 function BottomNav() {
     const { lang } = useLanguage();
+    const { role } = useAuth();
+    const [showMore, setShowMore] = useState(false);
     const isAr = lang === 'ar';
-    return (
-        <nav className="bottom-nav" dir={isAr ? 'rtl' : 'ltr'}>
-            <NavLink to="/" end className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}>
-                <LayoutDashboard className="nav-icon" />
-                <span>{isAr ? 'الرئيسية' : 'Home'}</span>
-            </NavLink>
-            <NavLink to="/employees" className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}>
-                <Search className="nav-icon" />
-                <span>{isAr ? 'البحث' : 'Search'}</span>
-            </NavLink>
-            
-            <NavLink to="/attendance" className="bottom-nav-fab">
-                <Fingerprint size={32} />
-            </NavLink>
 
-            <NavLink to="/leaves" className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}>
-                <LayoutGrid className="nav-icon" />
-                <span>{isAr ? 'الخدمات' : 'Services'}</span>
-            </NavLink>
-            <NavLink to="/settings" className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}>
-                <ShoppingCart className="nav-icon" />
-                <span>{isAr ? 'المتجر' : 'Store'}</span>
-            </NavLink>
-        </nav>
+    const moreItems = [
+        { icon: AlertTriangle, label: isAr ? 'التحذيرات' : 'Warnings', to: '/warnings' },
+        { icon: TrendingUp, label: isAr ? 'الأداء' : 'Performance', to: '/performance' },
+        { icon: DollarSign, label: isAr ? 'الرواتب' : 'Payroll', to: '/payroll' },
+        { icon: BarChart2, label: isAr ? 'التقارير' : 'Reports', to: '/reports' },
+        { icon: Briefcase, label: isAr ? 'التوظيف' : 'Recruitment', to: '/recruitment' },
+        { icon: CalendarRange, label: isAr ? 'الجدول' : 'Schedule', to: '/schedule' },
+        { icon: Settings, label: isAr ? 'الإعدادات' : 'Settings', to: '/settings' },
+        ...(role === 'admin' ? [{ icon: ShieldCheck, label: isAr ? 'المستخدمون' : 'Users', to: '/users' }] : []),
+    ];
+
+    return (
+        <>
+            {showMore && (
+                <div onClick={() => setShowMore(false)} style={{
+                    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 999,
+                    backdropFilter: 'blur(4px)',
+                }}>
+                    <div onClick={e => e.stopPropagation()} style={{
+                        position: 'absolute', bottom: 80, left: 12, right: 12,
+                        background: 'var(--bg2)', border: '1px solid var(--border)',
+                        borderRadius: 20, padding: 16,
+                        display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr',
+                        gap: 8,
+                    }}>
+                        <div style={{ gridColumn: '1/-1', fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.1em', paddingBottom: 8, borderBottom: '1px solid var(--border)', marginBottom: 4 }}>
+                            {isAr ? 'المزيد' : 'More Pages'}
+                        </div>
+                        {moreItems.map(({ icon: Icon, label, to }) => (
+                            <NavLink key={to} to={to} onClick={() => setShowMore(false)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '10px 4px', borderRadius: 12, background: 'var(--surface)', border: '1px solid var(--border)', textDecoration: 'none', color: 'var(--text-muted)' }}>
+                                <Icon size={20} />
+                                <span style={{ fontSize: '0.65rem', fontWeight: 600, textAlign: 'center' }}>{label}</span>
+                            </NavLink>
+                        ))}
+                    </div>
+                </div>
+            )}
+            <nav className="bottom-nav" dir={isAr ? 'rtl' : 'ltr'}>
+                <NavLink to="/" end className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}>
+                    <LayoutDashboard className="nav-icon" />
+                    <span>{isAr ? 'الرئيسية' : 'Home'}</span>
+                </NavLink>
+                <NavLink to="/employees" className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}>
+                    <Users className="nav-icon" />
+                    <span>{isAr ? 'الموظفون' : 'Staff'}</span>
+                </NavLink>
+
+                <NavLink to="/attendance" className="bottom-nav-fab">
+                    <Fingerprint size={32} />
+                </NavLink>
+
+                <NavLink to="/leaves" className={({ isActive }) => `bottom-nav-item ${isActive ? 'active' : ''}`}>
+                    <CalendarDays className="nav-icon" />
+                    <span>{isAr ? 'الإجازات' : 'Leaves'}</span>
+                </NavLink>
+                <button className={`bottom-nav-item ${showMore ? 'active' : ''}`} onClick={() => setShowMore(v => !v)}>
+                    <LayoutGrid className="nav-icon" />
+                    <span>{isAr ? 'المزيد' : 'More'}</span>
+                </button>
+            </nav>
+        </>
     );
 }
 
@@ -405,17 +445,29 @@ export default function App() {
             <div className="app-layout">
                 <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
                 <main className="main-content">
-                    <div className="mobile-header">
+                    <div className="mobile-header" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
+                        {/* Left: Logo */}
+                        <Logo lang={lang} size="sm" />
+                        {/* Right: greeting + avatar */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'linear-gradient(135deg, var(--primary), var(--secondary))', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
-                                <User size={20} />
+                            <div style={{ textAlign: lang === 'ar' ? 'right' : 'left' }}>
+                                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', lineHeight: 1 }}>
+                                    {lang === 'ar' ? 'مرحباً' : 'Welcome'} 👋
+                                </div>
+                                <div style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text)' }}>
+                                    {fullName || 'User'}
+                                </div>
                             </div>
-                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{lang === 'ar' ? 'مرحباً بك' : 'Welcome'} 👋</span>
-                                <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--text)' }}>{fullName || 'User'}</span>
+                            <div style={{
+                                width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
+                                background: 'linear-gradient(135deg, #7c3aed, #4f46e5)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                boxShadow: '0 4px 12px rgba(124,58,237,0.4)',
+                                fontSize: '1rem', fontWeight: 800, color: 'white',
+                            }}>
+                                {(fullName || 'U')[0].toUpperCase()}
                             </div>
                         </div>
-                        <Logo lang={lang} size="sm" />
                     </div>
                     <Routes>
                         <Route path="/" element={<Dashboard />} />
