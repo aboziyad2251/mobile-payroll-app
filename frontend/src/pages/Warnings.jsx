@@ -1,20 +1,21 @@
 import React, { useEffect, useState } from 'react';
-import { AlertTriangle, Plus, FileText, Award, Trash2 } from 'lucide-react';
+import { AlertTriangle, Plus, FileText, Award, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getWarnings, getEmployees, createWarning, getNextWarningType, generateWarningPDF, deleteWarning } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 
 export default function Warnings() {
-    const { t } = useLanguage();
+    const { t, lang } = useLanguage();
+    const isAr = lang === 'ar';
     const { subordinateIds } = useAuth();
 
     const TYPE_META = {
-        first: { label: t('warn.first'), cls: 'badge-warning', color: '#f59e0b' },
-        second: { label: t('warn.second'), cls: 'badge-warning', color: '#e97316' },
-        third: { label: t('warn.third'), cls: 'badge-danger', color: '#ef4444' },
-        final: { label: t('warn.final'), cls: 'badge-danger', color: '#b91c1c' },
-        recognition: { label: t('warn.recognition'), cls: 'badge-success', color: '#10b981' },
+        first:       { label: t('warn.first'),       color: '#f59e0b', bg: 'rgba(245,158,11,0.15)',  grad: 'linear-gradient(135deg,#92400e,#f59e0b)' },
+        second:      { label: t('warn.second'),      color: '#e97316', bg: 'rgba(233,115,22,0.15)',  grad: 'linear-gradient(135deg,#7c2d12,#ea580c)' },
+        third:       { label: t('warn.third'),       color: '#ef4444', bg: 'rgba(239,68,68,0.15)',   grad: 'linear-gradient(135deg,#7f1d1d,#dc2626)' },
+        final:       { label: t('warn.final'),       color: '#b91c1c', bg: 'rgba(185,28,28,0.15)',   grad: 'linear-gradient(135deg,#450a0a,#991b1b)' },
+        recognition: { label: t('warn.recognition'), color: '#10b981', bg: 'rgba(16,185,129,0.15)', grad: 'linear-gradient(135deg,#065f46,#10b981)' },
     };
 
     const [warnings, setWarnings] = useState([]);
@@ -25,6 +26,7 @@ export default function Warnings() {
     const [form, setForm] = useState({ employee_id: '', warning_type: '', reason: '', details: '', issued_by: 'HR Manager', issued_date: new Date().toISOString().split('T')[0] });
     const [nextType, setNextType] = useState(null);
     const [generatingPdf, setGeneratingPdf] = useState(null);
+    const [expandedId, setExpandedId] = useState(null);
 
     const load = () => {
         getWarnings(filterType ? { warning_type: filterType } : {})
@@ -70,80 +72,155 @@ export default function Warnings() {
     warnings.forEach(w => { if (counts[w.warning_type] !== undefined) counts[w.warning_type]++; });
 
     return (
-        <div>
-            <div className="page-header">
-                <div>
-                    <h1 className="page-title">{t('warn.title')}</h1>
-                    <p className="page-subtitle">{t('warn.subtitle')}</p>
+        <div dir={isAr ? 'rtl' : 'ltr'} style={{ animation: 'fadeIn 0.3s ease' }}>
+
+            {/* Hero */}
+            <div className="esshub-hero" style={{ marginBottom: 20 }}>
+                <div className="esshub-hero-deco1" />
+                <div className="esshub-hero-deco2" />
+                <div style={{ position: 'relative', zIndex: 1 }}>
+                    <p className="esshub-hero-label">{t('warn.title')}</p>
+                    <h2 className="esshub-hero-value">
+                        {warnings.length}
+                        <span className="esshub-hero-unit"> {isAr ? 'سجل' : 'Records'}</span>
+                    </h2>
+                    <button onClick={() => setShowModal(true)} style={{
+                        marginTop: 10, background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)',
+                        borderRadius: 10, padding: '6px 14px', color: 'white', fontSize: '0.8rem',
+                        fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
+                    }}>
+                        <Plus size={14} />
+                        {t('warn.issueWarning')}
+                    </button>
                 </div>
-                <button className="btn btn-primary" onClick={() => setShowModal(true)}><Plus size={16} />{t('warn.issueWarning')}</button>
             </div>
 
-            <div className="stat-grid" style={{ marginBottom: 20 }}>
+            {/* Type stats strip */}
+            <div className="esshub-stats-strip" style={{ marginBottom: 16 }}>
                 {Object.entries(TYPE_META).map(([type, meta]) => (
-                    <div className="stat-card" key={type} style={{ cursor: 'pointer' }} onClick={() => setFilterType(filterType === type ? '' : type)}>
-                        <div className="stat-icon" style={{ background: `${meta.color}22` }}>
-                            {type === 'recognition' ? <Award size={20} color={meta.color} /> : <AlertTriangle size={20} color={meta.color} />}
-                        </div>
-                        <div className="stat-info">
-                            <h3 style={{ color: meta.color }}>{counts[type]}</h3>
-                            <p>{meta.label}</p>
-                        </div>
+                    <div key={type} className="esshub-stat-chip"
+                        style={{ '--chip-color': meta.color, cursor: 'pointer', outline: filterType === type ? `2px solid ${meta.color}` : 'none' }}
+                        onClick={() => setFilterType(filterType === type ? '' : type)}>
+                        <span style={{ fontSize: '1.3rem', fontWeight: 800, color: meta.color }}>{counts[type]}</span>
+                        <span style={{ fontSize: '0.6rem', color: 'var(--text-dim)', textAlign: 'center', lineHeight: 1.3 }}>{meta.label}</span>
                     </div>
                 ))}
             </div>
 
-            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-                <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                    <span style={{ fontWeight: 700, flex: 1 }}>{t('warn.history')}</span>
-                    <select className="form-control" style={{ width: 'auto' }} value={filterType} onChange={e => setFilterType(e.target.value)}>
-                        <option value="">{t('warn.allTypes')}</option>
-                        {Object.entries(TYPE_META).map(([v, m]) => <option key={v} value={v}>{m.label}</option>)}
-                    </select>
+            {/* Cards */}
+            {loading ? (
+                <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>{t('common.loading')}</div>
+            ) : warnings.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
+                    <AlertTriangle size={48} style={{ opacity: 0.3, marginBottom: 12 }} />
+                    <p style={{ fontSize: '0.9rem' }}>{t('warn.noFound')}</p>
                 </div>
-                <div className="table-wrapper">
-                    <table>
-                        <thead><tr>
-                            <th>{t('common.employee')}</th><th>{t('warn.type')}</th><th>{t('warn.number')}</th>
-                            <th>{t('warn.reason')}</th><th>{t('warn.issuedBy')}</th><th>{t('common.date')}</th>
-                            <th>{t('common.status')}</th><th>{t('common.actions')}</th>
-                        </tr></thead>
-                        <tbody>
-                            {loading
-                                ? <tr><td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>{t('common.loading')}</td></tr>
-                                : warnings.length === 0
-                                    ? <tr><td colSpan={8}><div className="empty-state"><AlertTriangle size={40} /><p>{t('warn.noFound')}</p></div></td></tr>
-                                    : warnings.map(w => {
-                                        const tm = TYPE_META[w.warning_type] || { label: w.warning_type, cls: 'badge-info' };
-                                        return (
-                                            <tr key={w.id}>
-                                                <td>
-                                                    <div style={{ fontWeight: 600 }}>{w.first_name} {w.last_name}</div>
-                                                    <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)' }}>{w.employee_number} · {w.department}</div>
-                                                </td>
-                                                <td><span className={`badge ${tm.cls}`}>{tm.label}</span></td>
-                                                <td style={{ fontWeight: 700, color: 'var(--text-muted)' }}>{w.warning_number || '—'}</td>
-                                                <td style={{ maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{w.reason}</td>
-                                                <td>{w.issued_by}</td>
-                                                <td>{w.issued_date}</td>
-                                                <td>{w.acknowledged ? <span className="badge badge-success">{t('warn.acknowledged')}</span> : <span className="badge badge-warning">{t('warn.pending')}</span>}</td>
-                                                <td>
-                                                    <div style={{ display: 'flex', gap: 4 }}>
-                                                        <button className="btn btn-sm btn-secondary" onClick={() => handlePDF(w)} disabled={generatingPdf === w.id}>
-                                                            <FileText size={13} />{generatingPdf === w.id ? '…' : t('common.pdf')}
-                                                        </button>
-                                                        <button className="btn btn-ghost btn-icon" style={{ color: 'var(--danger)' }} onClick={() => handleDelete(w)}><Trash2 size={14} /></button>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+            ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {warnings.map(w => {
+                        const tm = TYPE_META[w.warning_type] || TYPE_META.first;
+                        const isExpanded = expandedId === w.id;
+                        return (
+                            <div key={w.id} style={{
+                                background: 'var(--surface)', borderRadius: 18, overflow: 'hidden',
+                                border: '1px solid var(--border)', boxShadow: '0 2px 12px rgba(0,0,0,0.12)',
+                            }}>
+                                <div style={{ padding: '14px 16px', cursor: 'pointer' }} onClick={() => setExpandedId(isExpanded ? null : w.id)}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                        {/* Icon avatar */}
+                                        <div style={{
+                                            width: 44, height: 44, borderRadius: 14, flexShrink: 0,
+                                            background: tm.grad, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
+                                        }}>
+                                            {w.warning_type === 'recognition'
+                                                ? <Award size={20} color="white" />
+                                                : <AlertTriangle size={20} color="white" />}
+                                        </div>
+                                        {/* Info */}
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>
+                                                {w.first_name} {w.last_name}
+                                            </div>
+                                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 4 }}>
+                                                {w.employee_number}{w.department ? ` · ${w.department}` : ''}
+                                            </div>
+                                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                                <span style={{ background: tm.bg, color: tm.color, fontSize: '0.68rem', fontWeight: 700, borderRadius: 8, padding: '2px 8px' }}>
+                                                    {tm.label}
+                                                </span>
+                                                <span style={{
+                                                    background: w.acknowledged ? 'rgba(16,185,129,0.12)' : 'rgba(245,158,11,0.12)',
+                                                    color: w.acknowledged ? '#10b981' : '#f59e0b',
+                                                    fontSize: '0.68rem', fontWeight: 700, borderRadius: 8, padding: '2px 8px'
+                                                }}>
+                                                    {w.acknowledged ? t('warn.acknowledged') : t('warn.pending')}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        {/* Date + chevron */}
+                                        <div style={{ textAlign: 'center', flexShrink: 0 }}>
+                                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{w.issued_date}</div>
+                                            <div style={{ marginTop: 4 }}>
+                                                {isExpanded ? <ChevronUp size={13} color="var(--text-dim)" /> : <ChevronDown size={13} color="var(--text-dim)" />}
+                                            </div>
+                                        </div>
+                                    </div>
 
+                                    {/* Reason preview */}
+                                    <div style={{ marginTop: 8, padding: '7px 10px', background: 'var(--bg2)', borderRadius: 10, fontSize: '0.78rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: isExpanded ? 'normal' : 'nowrap' }}>
+                                        {w.reason}
+                                    </div>
+                                </div>
+
+                                {/* Expanded details */}
+                                {isExpanded && w.details && (
+                                    <div style={{ padding: '0 16px 12px', borderTop: '1px solid var(--border)' }}>
+                                        <div style={{ marginTop: 10 }}>
+                                            <div style={{ fontSize: '0.68rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 4 }}>
+                                                {t('warn.details')}
+                                            </div>
+                                            <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>{w.details}</div>
+                                        </div>
+                                        <div style={{ marginTop: 10, fontSize: '0.72rem', color: 'var(--text-dim)' }}>
+                                            {isAr ? 'صادر من' : 'Issued by'}: <span style={{ color: 'var(--text-muted)' }}>{w.issued_by}</span>
+                                            {w.warning_number && <> · #{w.warning_number}</>}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Actions */}
+                                <div style={{ borderTop: '1px solid var(--border)', display: 'flex' }}>
+                                    <button
+                                        onClick={() => handlePDF(w)}
+                                        disabled={generatingPdf === w.id}
+                                        style={{
+                                            flex: 1, padding: '10px', border: 'none', background: 'transparent', cursor: 'pointer',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                                            color: 'var(--primary)', fontWeight: 700, fontSize: '0.78rem',
+                                            borderRight: isAr ? 'none' : '1px solid var(--border)',
+                                            borderLeft: isAr ? '1px solid var(--border)' : 'none',
+                                            opacity: generatingPdf === w.id ? 0.5 : 1,
+                                        }}>
+                                        <FileText size={13} />
+                                        {generatingPdf === w.id ? '…' : t('common.pdf')}
+                                    </button>
+                                    <button onClick={() => handleDelete(w)} style={{
+                                        flex: 1, padding: '10px', border: 'none', background: 'transparent', cursor: 'pointer',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                                        color: '#ef4444', fontWeight: 700, fontSize: '0.78rem',
+                                    }}>
+                                        <Trash2 size={13} />
+                                        {t('common.delete')}
+                                    </button>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+
+            {/* Issue Warning Modal */}
             {showModal && (
                 <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowModal(false)}>
                     <div className="modal">

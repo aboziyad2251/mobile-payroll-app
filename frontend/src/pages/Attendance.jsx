@@ -1,9 +1,19 @@
 import React, { useEffect, useState } from 'react';
-import { Calendar, Clock, CheckCircle, XCircle, LogIn } from 'lucide-react';
+import { Calendar, Clock, CheckCircle, XCircle, LogIn, ChevronDown, ChevronUp } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getAttendance, getEmployees, markAttendance, checkIn, updateAttendance } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
+
+const STATUS_COLORS = {
+    present:         { color: '#10b981', bg: 'rgba(16,185,129,0.15)' },
+    absent:          { color: '#ef4444', bg: 'rgba(239,68,68,0.15)' },
+    in_assignment:   { color: '#0ea5e9', bg: 'rgba(14,165,233,0.15)' },
+    excused:         { color: '#8b5cf6', bg: 'rgba(139,92,246,0.15)' },
+    annual_leave:    { color: '#4f46e5', bg: 'rgba(79,70,229,0.15)' },
+    sick_leave:      { color: '#ef4444', bg: 'rgba(239,68,68,0.15)' },
+    emergency_leave: { color: '#f59e0b', bg: 'rgba(245,158,11,0.15)' },
+};
 
 export default function Attendance() {
     const { t, lang } = useLanguage();
@@ -11,15 +21,16 @@ export default function Attendance() {
     const { subordinateIds } = useAuth();
 
     const STATUS_OPTIONS = [
-        { value: 'present',          label: t('att.present'),        cls: 'badge-present',   deducts: false },
-        { value: 'absent',           label: t('att.absent'),         cls: 'badge-absent',    deducts: true  },
-        { value: 'in_assignment',    label: isAr ? 'في مهمة' : 'In Assignment', cls: 'badge-info', deducts: false },
-        { value: 'excused',          label: t('att.excused'),        cls: 'badge-excused',   deducts: false },
-        { value: 'annual_leave',     label: t('att.annualLeave'),    cls: 'badge-annual',    deducts: false },
-        { value: 'sick_leave',       label: t('att.sickLeave'),      cls: 'badge-sick',      deducts: false },
-        { value: 'emergency_leave',  label: t('att.emergencyLeave'), cls: 'badge-emergency', deducts: false },
+        { value: 'present',          label: t('att.present'),        deducts: false },
+        { value: 'absent',           label: t('att.absent'),         deducts: true  },
+        { value: 'in_assignment',    label: isAr ? 'في مهمة' : 'In Assignment', deducts: false },
+        { value: 'excused',          label: t('att.excused'),        deducts: false },
+        { value: 'annual_leave',     label: t('att.annualLeave'),    deducts: false },
+        { value: 'sick_leave',       label: t('att.sickLeave'),      deducts: false },
+        { value: 'emergency_leave',  label: t('att.emergencyLeave'), deducts: false },
     ];
-    const statusInfo = (s) => STATUS_OPTIONS.find(o => o.value === s) || { label: s, cls: 'badge-info' };
+    const statusInfo = (s) => STATUS_OPTIONS.find(o => o.value === s) || { label: s };
+    const statusMeta = (s) => STATUS_COLORS[s] || { color: '#64748b', bg: 'rgba(100,116,139,0.15)' };
 
     const [records, setRecords] = useState([]);
     const [employees, setEmployees] = useState([]);
@@ -29,6 +40,7 @@ export default function Attendance() {
     const [markForm, setMarkForm] = useState({ status: 'present', check_in: '08:00', check_out: '16:00', break_start: '12:00', break_end: '12:40', notes: '' });
     const [checkinModal, setCheckinModal] = useState({ open: false });
     const [checkinForm, setCheckinForm] = useState({ employee_id: '', check_in: '', notes: '' });
+    const [expandedId, setExpandedId] = useState(null);
 
     const load = () => {
         setLoading(true);
@@ -55,7 +67,6 @@ export default function Attendance() {
     const submitMark = async (e) => {
         e.preventDefault();
         const { rec } = markModal;
-        // For non-present statuses, clear time fields
         const needsTimes = markForm.status === 'present' || markForm.status === 'in_assignment';
         const payload = {
             status: markForm.status,
@@ -88,79 +99,163 @@ export default function Attendance() {
     const totalAbsent = records.filter(r => r.status === 'absent').length;
     const totalLeave = records.filter(r => ['annual_leave', 'sick_leave', 'emergency_leave'].includes(r.status)).length;
 
+    const allRows = [...records, ...uncheckedEmployees.map(e => ({
+        employee_id: e.id, first_name: e.first_name, last_name: e.last_name,
+        employee_number: e.employee_number, department: e.department, status: null
+    }))];
+
     return (
-        <div>
-            <div className="page-header">
-                <div>
-                    <h1 className="page-title">{t('att.title')}</h1>
-                    <p className="page-subtitle">{t('att.subtitle')}</p>
-                </div>
-                <div style={{ display: 'flex', gap: 10 }}>
-                    <input className="form-control" type="date" value={date} onChange={e => setDate(e.target.value)} style={{ width: 'auto' }} />
-                    <button className="btn btn-primary" onClick={() => setCheckinModal({ open: true })}><LogIn size={16} />{t('att.checkIn')}</button>
-                </div>
-            </div>
+        <div dir={isAr ? 'rtl' : 'ltr'} style={{ animation: 'fadeIn 0.3s ease' }}>
 
-            <div className="stat-grid" style={{ marginBottom: 20 }}>
-                {[
-                    { label: t('att.present'), value: totalPresent, color: '#10b981', icon: CheckCircle },
-                    { label: t('att.absent'), value: totalAbsent, color: '#ef4444', icon: XCircle },
-                    { label: t('dash.onLeave'), value: totalLeave, color: '#f59e0b', icon: Calendar },
-                    { label: t('att.notMarked'), value: uncheckedEmployees.length, color: '#64748b', icon: Clock },
-                ].map(({ label, value, color, icon: Icon }) => (
-                    <div className="stat-card" key={label}>
-                        <div className="stat-icon" style={{ background: `${color}22` }}><Icon size={20} color={color} /></div>
-                        <div className="stat-info"><h3 style={{ color }}>{value}</h3><p>{label}</p></div>
+            {/* Hero */}
+            <div className="esshub-hero" style={{ marginBottom: 20 }}>
+                <div className="esshub-hero-deco1" />
+                <div className="esshub-hero-deco2" />
+                <div style={{ position: 'relative', zIndex: 1 }}>
+                    <p className="esshub-hero-label">{t('att.title')}</p>
+                    <h2 className="esshub-hero-value">
+                        {allRows.length}
+                        <span className="esshub-hero-unit"> {isAr ? 'موظف' : 'Employees'}</span>
+                    </h2>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+                        <input
+                            type="date" value={date} onChange={e => setDate(e.target.value)}
+                            style={{
+                                background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)',
+                                borderRadius: 10, padding: '6px 10px', color: 'white', fontSize: '0.8rem',
+                                outline: 'none', cursor: 'pointer',
+                            }}
+                        />
+                        <button onClick={() => setCheckinModal({ open: true })}
+                            style={{
+                                background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)',
+                                borderRadius: 10, padding: '6px 12px', color: 'white', fontSize: '0.78rem',
+                                fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
+                            }}>
+                            <LogIn size={13} />
+                            {t('att.checkIn')}
+                        </button>
                     </div>
-                ))}
-            </div>
-
-            <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-                <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ fontWeight: 700 }}>{t('att.title')} — {date}</span>
-                    <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{records.length} {t('att.records')}</span>
-                </div>
-                <div className="table-wrapper">
-                    <table>
-                        <thead><tr>
-                            <th>{t('common.employee')}</th><th>{t('common.status')}</th><th>{t('att.checkIn')}</th>
-                            <th>{t('att.breakTime')}</th><th>{t('att.checkOut')}</th><th>{t('att.overtime')}</th>
-                            <th>{t('common.notes')}</th><th>{t('common.actions')}</th>
-                        </tr></thead>
-                        <tbody>
-                            {loading
-                                ? <tr><td colSpan={8} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>{t('common.loading')}</td></tr>
-                                : [...records, ...uncheckedEmployees.map(e => ({ employee_id: e.id, first_name: e.first_name, last_name: e.last_name, employee_number: e.employee_number, department: e.department, status: null }))].map((rec, i) => {
-                                    const si = statusInfo(rec.status);
-                                    return (
-                                        <tr key={rec.id || `unm-${rec.employee_id}`}>
-                                            <td>
-                                                <div style={{ fontWeight: 600 }}>{rec.first_name} {rec.last_name}</div>
-                                                <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)' }}>{rec.employee_number} · {rec.department}</div>
-                                            </td>
-                                            <td>
-                                                {rec.status
-                                                    ? <span className={`badge ${si.cls}`}>{si.label}</span>
-                                                    : <span className="badge" style={{ background: 'rgba(100,116,139,0.15)', color: '#94a3b8' }}>{t('att.notMarked')}</span>
-                                                }
-                                            </td>
-                                            <td>{rec.check_in || '—'}</td>
-                                            <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                                                {rec.break_start ? `${rec.break_start}–${rec.break_end || '?'} (${rec.total_break_minutes || 0}m)` : '—'}
-                                            </td>
-                                            <td>{rec.check_out || '—'}</td>
-                                            <td>{rec.overtime_minutes > 0 ? <span className="badge badge-info">{Math.round(rec.overtime_minutes / 60 * 10) / 10}h</span> : '—'}</td>
-                                            <td style={{ maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--text-muted)', fontSize: '0.8rem' }}>{rec.notes || '—'}</td>
-                                            <td><button className="btn btn-sm btn-secondary" onClick={() => openMark(rec)}>{t('att.mark')}</button></td>
-                                        </tr>
-                                    );
-                                })
-                            }
-                        </tbody>
-                    </table>
+                    <div className="esshub-hero-pills" style={{ marginTop: 10 }}>
+                        {[
+                            { label: isAr ? 'حاضر' : 'Present', count: totalPresent, dot: '#34d399' },
+                            { label: isAr ? 'غائب' : 'Absent', count: totalAbsent, dot: '#f87171' },
+                            { label: isAr ? 'إجازة' : 'Leave', count: totalLeave, dot: '#60a5fa' },
+                            { label: isAr ? 'غير محدد' : 'Unmarked', count: uncheckedEmployees.length, dot: '#94a3b8' },
+                        ].map(({ label, count, dot }) => (
+                            <span key={label} className="esshub-pill">
+                                <span style={{ width: 7, height: 7, borderRadius: '50%', background: dot, display: 'inline-block', flexShrink: 0 }} />
+                                {label} {count}
+                            </span>
+                        ))}
+                    </div>
                 </div>
             </div>
 
+            {/* Cards list */}
+            {loading ? (
+                <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                    {t('common.loading')}
+                </div>
+            ) : allRows.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
+                    <Calendar size={48} style={{ opacity: 0.3, marginBottom: 12 }} />
+                    <p style={{ fontSize: '0.9rem' }}>{isAr ? 'لا توجد سجلات' : 'No records found'}</p>
+                </div>
+            ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {allRows.map((rec) => {
+                        const si = statusInfo(rec.status);
+                        const sm = statusMeta(rec.status);
+                        const isExpanded = expandedId === (rec.id || `unm-${rec.employee_id}`);
+                        const rowKey = rec.id || `unm-${rec.employee_id}`;
+                        const unmarked = !rec.status;
+
+                        return (
+                            <div key={rowKey} style={{
+                                background: 'var(--surface)', borderRadius: 16, overflow: 'hidden',
+                                border: '1px solid var(--border)', boxShadow: '0 2px 10px rgba(0,0,0,0.12)',
+                            }}>
+                                <div style={{ padding: '12px 14px', cursor: 'pointer' }}
+                                    onClick={() => setExpandedId(isExpanded ? null : rowKey)}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                        {/* Avatar */}
+                                        <div style={{
+                                            width: 42, height: 42, borderRadius: 13, flexShrink: 0,
+                                            background: unmarked ? 'rgba(100,116,139,0.15)' : sm.bg,
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                            fontSize: '1rem', fontWeight: 800, color: unmarked ? '#64748b' : sm.color,
+                                        }}>
+                                            {(rec.first_name || '?')[0].toUpperCase()}
+                                        </div>
+                                        {/* Info */}
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                            <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>
+                                                {rec.first_name} {rec.last_name}
+                                            </div>
+                                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                                                {rec.employee_number}{rec.department ? ` · ${rec.department}` : ''}
+                                            </div>
+                                        </div>
+                                        {/* Status badge */}
+                                        <div style={{ textAlign: 'center', flexShrink: 0 }}>
+                                            <span style={{
+                                                background: unmarked ? 'rgba(100,116,139,0.15)' : sm.bg,
+                                                color: unmarked ? '#94a3b8' : sm.color,
+                                                fontSize: '0.68rem', fontWeight: 700, borderRadius: 8, padding: '3px 8px',
+                                                display: 'block', marginBottom: 4,
+                                            }}>
+                                                {unmarked ? t('att.notMarked') : si.label}
+                                            </span>
+                                            {isExpanded ? <ChevronUp size={13} color="var(--text-dim)" /> : <ChevronDown size={13} color="var(--text-dim)" />}
+                                        </div>
+                                    </div>
+
+                                    {/* Times row for present/in_assignment */}
+                                    {rec.check_in && (
+                                        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                                            {[
+                                                { icon: '🟢', label: isAr ? 'دخول' : 'In', val: rec.check_in },
+                                                { icon: '🔴', label: isAr ? 'خروج' : 'Out', val: rec.check_out || '—' },
+                                                rec.overtime_minutes > 0 && { icon: '⏱', label: 'OT', val: `${Math.round(rec.overtime_minutes / 60 * 10) / 10}h` },
+                                            ].filter(Boolean).map(({ icon, label, val }) => (
+                                                <div key={label} style={{ background: 'var(--bg2)', borderRadius: 8, padding: '4px 8px', fontSize: '0.68rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                    <span>{icon}</span><span style={{ color: 'var(--text)' }}>{val}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Expanded: notes */}
+                                {isExpanded && rec.notes && (
+                                    <div style={{ padding: '0 14px 10px', borderTop: '1px solid var(--border)' }}>
+                                        <div style={{ marginTop: 8, fontSize: '0.78rem', color: 'var(--text-muted)', padding: '6px 10px', background: 'var(--bg2)', borderRadius: 8 }}>
+                                            {rec.notes}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Mark button */}
+                                <div style={{ borderTop: '1px solid var(--border)' }}>
+                                    <button
+                                        onClick={() => openMark(rec)}
+                                        style={{
+                                            width: '100%', padding: '10px', border: 'none', background: 'transparent',
+                                            cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700,
+                                            color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                                        }}>
+                                        <Clock size={13} />
+                                        {rec.id ? t('att.mark') : (isAr ? 'تسجيل الحضور' : 'Mark Attendance')}
+                                    </button>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+
+            {/* Mark modal */}
             {markModal.open && (
                 <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setMarkModal({ open: false })}>
                     <div className="modal">
@@ -209,6 +304,7 @@ export default function Attendance() {
                 </div>
             )}
 
+            {/* Check-in modal */}
             {checkinModal.open && (
                 <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setCheckinModal({ open: false })}>
                     <div className="modal">

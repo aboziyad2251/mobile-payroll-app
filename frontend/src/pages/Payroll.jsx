@@ -1,16 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { DollarSign, Calculator, FileText, TrendingDown, Printer, X, Gift } from 'lucide-react';
+import { DollarSign, Calculator, FileText, TrendingDown, Printer, X, Gift, ChevronDown, ChevronUp } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getPayroll, calculatePayroll, getPayrollSummary, generatePayslipPDF, getEmployees, calculateEOSB, updatePayrollStatus, updatePayrollBonus } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 
 const PAYROLL_STATUSES = [
-    { value: 'processed',   label: 'Processed',   labelAr: 'محسوب',         color: '#6366f1', bg: 'rgba(99,102,241,0.12)' },
-    { value: 'in_progress', label: 'In Progress',  labelAr: 'قيد التنفيذ',   color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
-    { value: 'on_hold',     label: 'On Hold',      labelAr: 'معلق',          color: '#64748b', bg: 'rgba(100,116,139,0.12)' },
-    { value: 'paid',        label: 'Paid',         labelAr: 'مدفوع',         color: '#10b981', bg: 'rgba(16,185,129,0.12)' },
-    { value: 'cancelled',   label: 'Cancelled',    labelAr: 'ملغى',          color: '#ef4444', bg: 'rgba(239,68,68,0.12)' },
+    { value: 'processed',   label: 'Processed',   labelAr: 'محسوب',       color: '#6366f1', bg: 'rgba(99,102,241,0.15)' },
+    { value: 'in_progress', label: 'In Progress',  labelAr: 'قيد التنفيذ', color: '#f59e0b', bg: 'rgba(245,158,11,0.15)' },
+    { value: 'on_hold',     label: 'On Hold',      labelAr: 'معلق',        color: '#64748b', bg: 'rgba(100,116,139,0.15)' },
+    { value: 'paid',        label: 'Paid',         labelAr: 'مدفوع',       color: '#10b981', bg: 'rgba(16,185,129,0.15)' },
+    { value: 'cancelled',   label: 'Cancelled',    labelAr: 'ملغى',        color: '#ef4444', bg: 'rgba(239,68,68,0.15)' },
 ];
 
 const statusMeta = (val) => PAYROLL_STATUSES.find(s => s.value === val) || PAYROLL_STATUSES[0];
@@ -28,18 +28,16 @@ export default function Payroll() {
     const now = new Date();
     const [month, setMonth] = useState(now.getMonth() + 1);
     const [year, setYear] = useState(now.getFullYear());
-    // Payslip preview
     const [payslip, setPayslip] = useState(null);
     const payslipRef = useRef(null);
-    // Bonus modal
-    const [bonusModal, setBonusModal] = useState(null); // { record }
-    const [bonusType, setBonusType] = useState('none'); // none | fixed | multiplier
+    const [bonusModal, setBonusModal] = useState(null);
+    const [bonusType, setBonusType] = useState('none');
     const [bonusValue, setBonusValue] = useState('');
     const [updatingBonus, setUpdatingBonus] = useState(null);
-    // EOSB state
     const [employees, setEmployees] = useState([]);
     const [eosbEmpId, setEosbEmpId] = useState('');
     const [eosbResult, setEosbResult] = useState(null);
+    const [expandedId, setExpandedId] = useState(null);
 
     const load = () => {
         setLoading(true);
@@ -70,13 +68,8 @@ export default function Payroll() {
 
     const openBonusModal = (rec) => {
         const existing = Number(rec.annual_incentive || 0);
-        if (existing > 0) {
-            setBonusType('fixed');
-            setBonusValue(String(existing));
-        } else {
-            setBonusType('none');
-            setBonusValue('');
-        }
+        if (existing > 0) { setBonusType('fixed'); setBonusValue(String(existing)); }
+        else { setBonusType('none'); setBonusValue(''); }
         setBonusModal({ record: rec });
     };
 
@@ -125,22 +118,8 @@ export default function Payroll() {
         const el = payslipRef.current;
         if (!el) return;
         const win = window.open('', '_blank');
-        win.document.write(`
-            <html><head><title>Payslip</title><style>
-                body { font-family: Arial, sans-serif; padding: 32px; color: #111; }
-                h2 { margin: 0 0 4px; } .sub { color: #666; font-size: 13px; margin-bottom: 24px; }
-                .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 32px; margin-bottom: 24px; }
-                .row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; font-size: 14px; }
-                .label { color: #555; } .val { font-weight: 700; }
-                .total { font-size: 16px; font-weight: 800; padding: 12px 0; border-top: 2px solid #111; margin-top: 8px; }
-                .badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; }
-                .section-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #888; margin: 20px 0 8px; }
-            </style></head><body>${el.innerHTML}</body></html>
-        `);
-        win.document.close();
-        win.focus();
-        win.print();
-        win.close();
+        win.document.write(`<html><head><title>Payslip</title><style>body{font-family:Arial,sans-serif;padding:32px;color:#111}.row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #eee;font-size:14px}.label{color:#555}.val{font-weight:700}</style></head><body>${el.innerHTML}</body></html>`);
+        win.document.close(); win.focus(); win.print(); win.close();
     };
 
     const fmt = (n) => Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -148,198 +127,234 @@ export default function Payroll() {
     const monthName = new Date(year, month - 1).toLocaleString(locale, { month: 'long', year: 'numeric' });
 
     return (
-        <div>
-            <div className="page-header">
-                <div>
-                    <h1 className="page-title">{t('pay.title')}</h1>
-                    <p className="page-subtitle">{t('pay.subtitle')}</p>
-                </div>
-                {tab === 'payroll' && (
-                    <div style={{ display: 'flex', gap: 10 }}>
-                        <select className="form-control" style={{ width: 'auto' }} value={month} onChange={e => setMonth(Number(e.target.value))}>
-                            {Array.from({ length: 12 }, (_, i) => <option key={i + 1} value={i + 1}>{new Date(2024, i).toLocaleString(locale, { month: 'long' })}</option>)}
+        <div dir={isAr ? 'rtl' : 'ltr'} style={{ animation: 'fadeIn 0.3s ease' }}>
+
+            {/* Hero */}
+            <div className="esshub-hero" style={{ marginBottom: 20 }}>
+                <div className="esshub-hero-deco1" />
+                <div className="esshub-hero-deco2" />
+                <div style={{ position: 'relative', zIndex: 1 }}>
+                    <p className="esshub-hero-label">{t('pay.title')}</p>
+                    <h2 className="esshub-hero-value">
+                        {summary?.total_employees || 0}
+                        <span className="esshub-hero-unit"> {isAr ? 'موظف' : 'Employees'}</span>
+                    </h2>
+                    <p className="esshub-hero-date">{monthName}</p>
+                    {/* Month/Year pickers */}
+                    <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+                        <select value={month} onChange={e => setMonth(Number(e.target.value))}
+                            style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 10, padding: '5px 10px', color: 'white', fontSize: '0.78rem', outline: 'none' }}>
+                            {Array.from({ length: 12 }, (_, i) => <option key={i + 1} value={i + 1} style={{ color: '#111' }}>{new Date(2024, i).toLocaleString(locale, { month: 'long' })}</option>)}
                         </select>
-                        <select className="form-control" style={{ width: 'auto' }} value={year} onChange={e => setYear(Number(e.target.value))}>
-                            {[2023, 2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
+                        <select value={year} onChange={e => setYear(Number(e.target.value))}
+                            style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 10, padding: '5px 10px', color: 'white', fontSize: '0.78rem', outline: 'none' }}>
+                            {[2023, 2024, 2025, 2026].map(y => <option key={y} value={y} style={{ color: '#111' }}>{y}</option>)}
                         </select>
                         {role === 'admin' && (
-                            <button className="btn btn-primary" onClick={handleCalculate} disabled={calculating}>
-                                <Calculator size={15} />{calculating ? t('pay.calculating') : t('pay.calculate')}
+                            <button onClick={handleCalculate} disabled={calculating}
+                                style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 10, padding: '5px 12px', color: 'white', fontSize: '0.78rem', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5 }}>
+                                <Calculator size={13} />{calculating ? t('pay.calculating') : t('pay.calculate')}
                             </button>
                         )}
                     </div>
-                )}
+                </div>
             </div>
 
             {/* Tab switcher */}
-            <div style={{ display: 'flex', gap: 4, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: 4, marginBottom: 20, width: 'fit-content' }}>
-                {[{ id: 'payroll', label: t('pay.title'), icon: DollarSign }, { id: 'eosb', label: isAr ? 'مكافأة نهاية الخدمة' : 'EOSB Calculator', icon: TrendingDown }].map(({ id, label, icon: Icon }) => (
+            <div style={{ display: 'flex', gap: 4, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: 4, marginBottom: 20 }}>
+                {[{ id: 'payroll', label: t('pay.title'), icon: DollarSign }, { id: 'eosb', label: isAr ? 'مكافأة نهاية الخدمة' : 'EOSB Calc', icon: TrendingDown }].map(({ id, label, icon: Icon }) => (
                     <button key={id} onClick={() => setTab(id)} style={{
-                        display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 7,
+                        flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '9px 10px', borderRadius: 7,
                         border: 'none', background: tab === id ? 'var(--primary)' : 'transparent',
-                        color: tab === id ? 'white' : 'var(--text-muted)', fontWeight: 600, fontSize: '0.85rem',
-                        cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.2s',
+                        color: tab === id ? 'white' : 'var(--text-muted)', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer', fontFamily: 'inherit',
                     }}>
-                        <Icon size={15} /> {label}
+                        <Icon size={14} /> {label}
                     </button>
                 ))}
             </div>
 
-            {/* ── EOSB TAB ── */}
-            {tab === 'eosb' && (
-                <div style={{ maxWidth: 600 }}>
-                    <div className="card" style={{ padding: 24 }}>
-                        <h3 style={{ marginBottom: 16, fontWeight: 700, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <TrendingDown size={18} color="var(--primary)" />
-                            {isAr ? 'حساب مكافأة نهاية الخدمة' : 'End of Service Benefit Calculator'}
-                        </h3>
-                        <p style={{ fontSize: '0.83rem', color: 'var(--text-muted)', marginBottom: 20 }}>
-                            {isAr ? 'يحسب المكافأة وفق نظام العمل السعودي' : 'Calculated per Saudi Labor Law based on years of service'}
-                        </p>
-                        <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
-                            <select className="form-control" value={eosbEmpId} onChange={e => { setEosbEmpId(e.target.value); setEosbResult(null); }}>
-                                <option value="">{isAr ? 'اختر موظفاً' : 'Select Employee'}</option>
-                                {employees.map(e => <option key={e.id} value={e.id}>{e.first_name} {e.last_name} ({e.employee_number})</option>)}
-                            </select>
-                            <button className="btn btn-primary" onClick={handleEOSB} disabled={!eosbEmpId}>
-                                <Calculator size={15} /> {isAr ? 'احسب' : 'Calculate'}
-                            </button>
-                        </div>
-                        {eosbResult && (
-                            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 20 }}>
-                                <div style={{ marginBottom: 12 }}>
-                                    <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>{isAr ? 'الموظف' : 'Employee'}</span>
-                                    <div style={{ fontWeight: 700, color: 'var(--text)' }}>{eosbResult.employee.first_name} {eosbResult.employee.last_name}</div>
-                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{isAr ? 'تاريخ التعيين:' : 'Hire date:'} {eosbResult.employee.hire_date}</div>
-                                </div>
-                                <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
-                                    <div className="stat-card" style={{ flex: 1 }}><div className="stat-info"><h3 style={{ color: 'var(--primary)' }}>{eosbResult.years}</h3><p>{isAr ? 'سنوات الخدمة' : 'Years of Service'}</p></div></div>
-                                    <div className="stat-card" style={{ flex: 1 }}><div className="stat-info"><h3 style={{ color: '#10b981' }}>{fmt(eosbResult.benefit)} SAR</h3><p>{isAr ? 'إجمالي المكافأة' : 'Total Benefit'}</p></div></div>
-                                </div>
-                                {eosbResult.breakdown.map((b, i) => (
-                                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: '0.85rem' }}>
-                                        <span style={{ color: 'var(--text-muted)' }}>{b.label}</span>
-                                        <span style={{ fontWeight: 700 }}>{fmt(b.amount)} SAR</span>
-                                    </div>
-                                ))}
-                                <button className="btn btn-secondary" style={{ marginTop: 16 }} onClick={() => window.print()}><FileText size={14} /> {isAr ? 'طباعة' : 'Print'}</button>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            )}
-
-            {/* ── PAYROLL TAB ── */}
+            {/* Summary chips */}
             {tab === 'payroll' && summary && (
-                <div className="stat-grid" style={{ marginBottom: 20 }}>
+                <div className="esshub-stats-strip" style={{ marginBottom: 16 }}>
                     {[
-                        { label: t('pay.totalEmployees'), value: summary.total_employees, color: '#4f46e5' },
-                        { label: t('pay.totalGross'), value: fmt(summary.total_gross), color: '#0ea5e9' },
-                        { label: t('pay.totalDeductions'), value: fmt(summary.total_deductions), color: '#ef4444' },
-                        { label: t('pay.totalNet'), value: fmt(summary.total_net), color: '#10b981' },
+                        { label: isAr ? 'الموظفون' : 'Employees', value: summary.total_employees, color: '#4f46e5' },
+                        { label: isAr ? 'إجمالي' : 'Gross', value: fmt(summary.total_gross), color: '#0ea5e9' },
+                        { label: isAr ? 'الخصومات' : 'Deductions', value: fmt(summary.total_deductions), color: '#ef4444' },
+                        { label: isAr ? 'الصافي' : 'Net', value: fmt(summary.total_net), color: '#10b981' },
                     ].map(({ label, value, color }) => (
-                        <div className="stat-card" key={label}>
-                            <div className="stat-icon" style={{ background: `${color}22` }}><DollarSign size={20} color={color} /></div>
-                            <div className="stat-info"><h3 style={{ color, fontSize: '1.2rem' }}>{value}</h3><p>{label}</p></div>
+                        <div key={label} className="esshub-stat-chip" style={{ '--chip-color': color }}>
+                            <span style={{ fontSize: '0.9rem', fontWeight: 800, color }}>{value}</span>
+                            <span style={{ fontSize: '0.6rem', color: 'var(--text-dim)', textAlign: 'center', lineHeight: 1.3 }}>{label}</span>
                         </div>
                     ))}
                 </div>
             )}
 
-            {tab === 'payroll' && (
-                <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 24 }}>
-                    <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', fontWeight: 700 }}>
-                        {t('pay.title')} — {monthName}
+            {/* ── EOSB TAB ── */}
+            {tab === 'eosb' && (
+                <div style={{ background: 'var(--surface)', borderRadius: 18, border: '1px solid var(--border)', padding: 20 }}>
+                    <h3 style={{ marginBottom: 6, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <TrendingDown size={18} color="var(--primary)" />
+                        {isAr ? 'حساب مكافأة نهاية الخدمة' : 'EOSB Calculator'}
+                    </h3>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: 16 }}>
+                        {isAr ? 'يحسب المكافأة وفق نظام العمل السعودي' : 'Calculated per Saudi Labor Law'}
+                    </p>
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                        <select className="form-control" style={{ flex: 1 }} value={eosbEmpId} onChange={e => { setEosbEmpId(e.target.value); setEosbResult(null); }}>
+                            <option value="">{isAr ? 'اختر موظفاً' : 'Select Employee'}</option>
+                            {employees.map(e => <option key={e.id} value={e.id}>{e.first_name} {e.last_name}</option>)}
+                        </select>
+                        <button className="btn btn-primary" onClick={handleEOSB} disabled={!eosbEmpId}>
+                            <Calculator size={15} />
+                        </button>
                     </div>
-                    <div className="table-wrapper">
-                        <table>
-                            <thead><tr>
-                                <th>{t('common.employee')}</th>
-                                <th>{t('pay.baseSalary')}</th>
-                                <th>{t('pay.allowances')}</th>
-                                <th>{t('pay.overtime')}</th>
-                                <th>{t('pay.grossPay')}</th>
-                                <th>{t('pay.deductions')}</th>
-                                <th>{isAr ? 'مكافأة' : 'Bonus'}</th>
-                                <th>{t('pay.netPay')}</th>
-                                <th>{t('pay.days')}</th>
-                                <th>{t('common.status')}</th>
-                                <th>{t('common.actions')}</th>
-                            </tr></thead>
-                            <tbody>
-                                {loading
-                                    ? <tr><td colSpan={11} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>{t('common.loading')}</td></tr>
-                                    : records.length === 0
-                                        ? <tr><td colSpan={11}><div className="empty-state"><DollarSign size={40} /><p>{t('pay.noData')}<br /><strong>{t('pay.clickCalc')}</strong></p></div></td></tr>
-                                        : records.map(r => {
-                                            const sm = statusMeta(r.status);
-                                            const hasBonus = Number(r.annual_incentive || 0) > 0;
-                                            return (
-                                                <tr key={r.id} style={{ background: payslip?.id === r.id ? 'rgba(79,70,229,0.06)' : undefined }}>
-                                                    <td>
-                                                        <div style={{ fontWeight: 600 }}>{r.first_name} {r.last_name}</div>
-                                                        <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)' }}>{r.employee_number} · {r.department}</div>
-                                                    </td>
-                                                    <td>{fmt(r.base_salary)}</td>
-                                                    <td style={{ color: 'var(--text-muted)', fontSize: '0.83rem' }}>
-                                                        +{fmt(Number(r.housing_allowance || 0) + Number(r.transport_allowance || 0) + Number(r.other_allowance || 0))}
-                                                    </td>
-                                                    <td style={{ color: '#0ea5e9', fontSize: '0.83rem' }}>{r.overtime_hours > 0 ? `${fmt(r.overtime_pay)} (${r.overtime_hours}h)` : '—'}</td>
-                                                    <td style={{ fontWeight: 600 }}>{fmt(r.gross_pay)}</td>
-                                                    <td style={{ color: 'var(--danger)' }}>{r.absence_deduction > 0 ? `-${fmt(r.absence_deduction)}` : '—'}</td>
-                                                    <td>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                                            {hasBonus
-                                                                ? <span style={{ color: '#10b981', fontWeight: 700 }}>+{fmt(r.annual_incentive)}</span>
-                                                                : <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>—</span>
-                                                            }
-                                                            <button
-                                                                className="btn btn-sm"
-                                                                onClick={() => openBonusModal(r)}
-                                                                disabled={updatingBonus === r.id}
-                                                                style={{ padding: '2px 6px', fontSize: '0.72rem', display: 'flex', alignItems: 'center', gap: 3, background: 'rgba(16,185,129,0.12)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 5 }}
-                                                            >
-                                                                <Gift size={11} />{isAr ? 'تعيين' : 'Set'}
-                                                            </button>
-                                                        </div>
-                                                    </td>
-                                                    <td style={{ fontWeight: 700, color: '#10b981' }}>{fmt(r.net_pay)}</td>
-                                                    <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{r.days_worked}/{r.working_days}</td>
-                                                    <td>
-                                                        {/* Status dropdown */}
-                                                        <select
-                                                            value={r.status || 'processed'}
-                                                            disabled={updatingStatus === r.id}
-                                                            onChange={e => handleStatusChange(r.id, e.target.value)}
-                                                            style={{
-                                                                fontSize: '0.75rem', fontWeight: 700, padding: '3px 8px', borderRadius: 6,
-                                                                border: `1px solid ${sm.color}40`, background: sm.bg, color: sm.color,
-                                                                cursor: 'pointer', outline: 'none', fontFamily: 'inherit',
-                                                            }}
-                                                        >
-                                                            {PAYROLL_STATUSES.map(s => (
-                                                                <option key={s.value} value={s.value}>{isAr ? s.labelAr : s.label}</option>
-                                                            ))}
-                                                        </select>
-                                                    </td>
-                                                    <td>
-                                                        <button
-                                                            className="btn btn-sm btn-secondary"
-                                                            onClick={() => payslip?.id === r.id ? setPayslip(null) : handlePayslip(r)}
-                                                            style={{ display: 'flex', alignItems: 'center', gap: 4 }}
-                                                        >
-                                                            <FileText size={13} />
-                                                            {payslip?.id === r.id ? (isAr ? 'إغلاق' : 'Close') : t('pay.slip')}
-                                                        </button>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })
-                                }
-                            </tbody>
-                        </table>
-                    </div>
+                    {eosbResult && (
+                        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
+                            <div style={{ fontWeight: 700, marginBottom: 4 }}>{eosbResult.employee.first_name} {eosbResult.employee.last_name}</div>
+                            <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: 16 }}>
+                                {isAr ? 'تاريخ التعيين:' : 'Hire date:'} {eosbResult.employee.hire_date}
+                            </div>
+                            <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+                                <div style={{ flex: 1, background: 'var(--bg2)', borderRadius: 12, padding: '12px', textAlign: 'center' }}>
+                                    <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--primary)' }}>{eosbResult.years}</div>
+                                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{isAr ? 'سنوات الخدمة' : 'Years of Service'}</div>
+                                </div>
+                                <div style={{ flex: 1, background: 'rgba(16,185,129,0.1)', borderRadius: 12, padding: '12px', textAlign: 'center' }}>
+                                    <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#10b981' }}>{fmt(eosbResult.benefit)}</div>
+                                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{isAr ? 'إجمالي المكافأة' : 'Total (SAR)'}</div>
+                                </div>
+                            </div>
+                            {eosbResult.breakdown.map((b, i) => (
+                                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: '0.85rem' }}>
+                                    <span style={{ color: 'var(--text-muted)' }}>{b.label}</span>
+                                    <span style={{ fontWeight: 700 }}>{fmt(b.amount)} SAR</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
+            )}
+
+            {/* ── PAYROLL CARDS ── */}
+            {tab === 'payroll' && (
+                loading ? (
+                    <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)', fontSize: '0.9rem' }}>{t('common.loading')}</div>
+                ) : records.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
+                        <DollarSign size={48} style={{ opacity: 0.3, marginBottom: 12 }} />
+                        <p style={{ fontSize: '0.9rem' }}>{t('pay.noData')}</p>
+                        <p style={{ fontSize: '0.82rem', color: 'var(--primary)', marginTop: 4 }}>{t('pay.clickCalc')}</p>
+                    </div>
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        {records.map(r => {
+                            const sm = statusMeta(r.status);
+                            const isExpanded = expandedId === r.id;
+                            const hasBonus = Number(r.annual_incentive || 0) > 0;
+                            return (
+                                <div key={r.id} style={{
+                                    background: 'var(--surface)', borderRadius: 18, overflow: 'hidden',
+                                    border: payslip?.id === r.id ? '2px solid var(--primary)' : '1px solid var(--border)',
+                                    boxShadow: '0 2px 12px rgba(0,0,0,0.12)',
+                                }}>
+                                    <div style={{ padding: '14px 16px', cursor: 'pointer' }} onClick={() => setExpandedId(isExpanded ? null : r.id)}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                            {/* Avatar */}
+                                            <div style={{
+                                                width: 44, height: 44, borderRadius: 14, flexShrink: 0,
+                                                background: 'linear-gradient(135deg, #065f46, #10b981)',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                fontSize: '1.1rem', fontWeight: 800, color: 'white',
+                                            }}>
+                                                {(r.first_name || '?')[0].toUpperCase()}
+                                            </div>
+                                            {/* Info */}
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{r.first_name} {r.last_name}</div>
+                                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 4 }}>
+                                                    {r.employee_number}{r.department ? ` · ${r.department}` : ''}
+                                                </div>
+                                                <select
+                                                    value={r.status || 'processed'}
+                                                    disabled={updatingStatus === r.id}
+                                                    onClick={e => e.stopPropagation()}
+                                                    onChange={e => handleStatusChange(r.id, e.target.value)}
+                                                    style={{ fontSize: '0.68rem', fontWeight: 700, padding: '2px 8px', borderRadius: 8, border: `1px solid ${sm.color}40`, background: sm.bg, color: sm.color, cursor: 'pointer', outline: 'none', fontFamily: 'inherit' }}>
+                                                    {PAYROLL_STATUSES.map(s => <option key={s.value} value={s.value}>{isAr ? s.labelAr : s.label}</option>)}
+                                                </select>
+                                            </div>
+                                            {/* Net pay */}
+                                            <div style={{ textAlign: 'center', flexShrink: 0 }}>
+                                                <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#10b981', lineHeight: 1 }}>{fmt(r.net_pay)}</div>
+                                                <div style={{ fontSize: '0.6rem', color: 'var(--text-dim)', marginBottom: 4 }}>SAR {isAr ? 'صافي' : 'Net'}</div>
+                                                {isExpanded ? <ChevronUp size={13} color="var(--text-dim)" /> : <ChevronDown size={13} color="var(--text-dim)" />}
+                                            </div>
+                                        </div>
+
+                                        {/* Quick row: days worked + deduction */}
+                                        <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                                            <div style={{ flex: 1, background: 'var(--bg2)', borderRadius: 8, padding: '5px 8px', fontSize: '0.68rem', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between' }}>
+                                                <span>{isAr ? 'حضور' : 'Days'}</span>
+                                                <span style={{ fontWeight: 700, color: 'var(--text)' }}>{r.days_worked}/{r.working_days}</span>
+                                            </div>
+                                            <div style={{ flex: 1, background: 'var(--bg2)', borderRadius: 8, padding: '5px 8px', fontSize: '0.68rem', color: 'var(--text-muted)', display: 'flex', justifyContent: 'space-between' }}>
+                                                <span>{isAr ? 'إجمالي' : 'Gross'}</span>
+                                                <span style={{ fontWeight: 700, color: '#0ea5e9' }}>{fmt(r.gross_pay)}</span>
+                                            </div>
+                                            {r.absence_deduction > 0 && (
+                                                <div style={{ flex: 1, background: 'rgba(239,68,68,0.08)', borderRadius: 8, padding: '5px 8px', fontSize: '0.68rem', display: 'flex', justifyContent: 'space-between' }}>
+                                                    <span style={{ color: '#ef4444' }}>{isAr ? 'خصم' : 'Ded.'}</span>
+                                                    <span style={{ fontWeight: 700, color: '#ef4444' }}>-{fmt(r.absence_deduction)}</span>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Expanded earnings detail */}
+                                    {isExpanded && (
+                                        <div style={{ padding: '0 16px 12px', borderTop: '1px solid var(--border)' }}>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 10 }}>
+                                                {[
+                                                    { label: isAr ? 'الراتب الأساسي' : 'Base Salary', val: fmt(r.base_salary), color: 'var(--text)' },
+                                                    { label: isAr ? 'البدلات' : 'Allowances', val: fmt(Number(r.housing_allowance || 0) + Number(r.transport_allowance || 0) + Number(r.other_allowance || 0)), color: '#0ea5e9' },
+                                                    { label: isAr ? 'الأجر الإضافي' : 'Overtime', val: r.overtime_hours > 0 ? `${fmt(r.overtime_pay)} (${r.overtime_hours}h)` : '—', color: '#8b5cf6' },
+                                                    { label: isAr ? 'مكافأة' : 'Bonus', val: hasBonus ? `+${fmt(r.annual_incentive)}` : '—', color: '#10b981' },
+                                                ].map(({ label, val, color }) => (
+                                                    <div key={label} style={{ background: 'var(--bg2)', borderRadius: 10, padding: '8px 10px' }}>
+                                                        <div style={{ fontSize: '0.62rem', color: 'var(--text-dim)', marginBottom: 2 }}>{label}</div>
+                                                        <div style={{ fontSize: '0.82rem', fontWeight: 700, color }}>{val}</div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Actions */}
+                                    <div style={{ borderTop: '1px solid var(--border)', display: 'flex' }}>
+                                        <button onClick={() => openBonusModal(r)} style={{
+                                            flex: 1, padding: '10px', border: 'none', background: 'transparent', cursor: 'pointer',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                                            color: '#10b981', fontWeight: 700, fontSize: '0.75rem',
+                                            borderRight: isAr ? 'none' : '1px solid var(--border)',
+                                            borderLeft: isAr ? '1px solid var(--border)' : 'none',
+                                        }}>
+                                            <Gift size={13} />{isAr ? 'مكافأة' : 'Bonus'}
+                                        </button>
+                                        <button onClick={() => payslip?.id === r.id ? setPayslip(null) : handlePayslip(r)} style={{
+                                            flex: 1, padding: '10px', border: 'none', background: 'transparent', cursor: 'pointer',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+                                            color: payslip?.id === r.id ? 'var(--danger)' : 'var(--primary)', fontWeight: 700, fontSize: '0.75rem',
+                                        }}>
+                                            <FileText size={13} />
+                                            {payslip?.id === r.id ? (isAr ? 'إغلاق' : 'Close') : t('pay.slip')}
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )
             )}
 
             {/* ── BONUS MODAL ── */}
@@ -364,19 +379,11 @@ export default function Payroll() {
                         {bonusType !== 'none' && (
                             <div className="form-group">
                                 <label className="form-label">
-                                    {bonusType === 'fixed'
-                                        ? (isAr ? 'المبلغ (SAR)' : 'Amount (SAR)')
-                                        : (isAr ? 'المضاعف (مثال: 0.5 = نصف الراتب)' : 'Multiplier (e.g. 0.5 = half salary)')}
+                                    {bonusType === 'fixed' ? (isAr ? 'المبلغ (SAR)' : 'Amount (SAR)') : (isAr ? 'المضاعف' : 'Multiplier')}
                                 </label>
-                                <input
-                                    className="form-control"
-                                    type="number"
-                                    min="0"
-                                    step={bonusType === 'multiplier' ? '0.01' : '1'}
-                                    value={bonusValue}
-                                    onChange={e => setBonusValue(e.target.value)}
-                                    placeholder={bonusType === 'multiplier' ? '0.5' : '1000'}
-                                />
+                                <input className="form-control" type="number" min="0" step={bonusType === 'multiplier' ? '0.01' : '1'}
+                                    value={bonusValue} onChange={e => setBonusValue(e.target.value)}
+                                    placeholder={bonusType === 'multiplier' ? '0.5' : '1000'} />
                             </div>
                         )}
                         {bonusType !== 'none' && bonusValue && (
@@ -387,13 +394,7 @@ export default function Payroll() {
                         )}
                         <div className="modal-footer">
                             <button type="button" className="btn btn-secondary" onClick={() => setBonusModal(null)}>{t('common.cancel')}</button>
-                            <button
-                                type="button"
-                                className="btn btn-primary"
-                                onClick={handleSaveBonus}
-                                disabled={updatingBonus === bonusModal.record.id}
-                                style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-                            >
+                            <button type="button" className="btn btn-primary" onClick={handleSaveBonus} disabled={updatingBonus === bonusModal.record.id}>
                                 <Gift size={14} />{isAr ? 'حفظ المكافأة' : 'Save Bonus'}
                             </button>
                         </div>
@@ -401,122 +402,77 @@ export default function Payroll() {
                 </div>
             )}
 
-            {/* ── PAYSLIP PREVIEW PANEL ── */}
+            {/* ── PAYSLIP PANEL ── */}
             {tab === 'payroll' && payslip && (
-                <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: 24 }} ref={payslipRef}>
-                    {/* Panel header */}
-                    <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ background: 'var(--surface)', borderRadius: 18, border: '1px solid var(--border)', overflow: 'hidden', marginTop: 16 }} ref={payslipRef}>
+                    <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <span style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
                             <FileText size={16} color="var(--primary)" />
                             {isAr ? 'قسيمة الراتب' : 'Payslip'} — {payslip.first_name} {payslip.last_name}
                         </span>
                         <div style={{ display: 'flex', gap: 8 }}>
-                            <button className="btn btn-primary btn-sm" onClick={handlePrint} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <Printer size={14} /> {isAr ? 'طباعة' : 'Print'}
+                            <button className="btn btn-primary btn-sm" onClick={handlePrint} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                <Printer size={13} /> {isAr ? 'طباعة' : 'Print'}
                             </button>
                             <button className="btn btn-ghost btn-icon" onClick={() => setPayslip(null)}><X size={16} /></button>
                         </div>
                     </div>
-
-                    {/* Payslip content */}
-                    <div style={{ padding: 32 }}>
-                        <div id="payslip-content">
-                            {/* Header */}
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28, paddingBottom: 20, borderBottom: '2px solid var(--border)' }}>
-                                <div>
-                                    <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>
-                                        {isAr ? 'قسيمة الراتب' : 'PAYSLIP'}
-                                    </div>
-                                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                                        {isAr ? 'الفترة:' : 'Period:'} {monthName}
-                                    </div>
+                    <div style={{ padding: 20 }} id="payslip-content">
+                        <div style={{ marginBottom: 16, paddingBottom: 14, borderBottom: '2px solid var(--border)' }}>
+                            <div style={{ fontSize: '1.1rem', fontWeight: 800, marginBottom: 2 }}>{isAr ? 'قسيمة الراتب' : 'PAYSLIP'}</div>
+                            <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{isAr ? 'الفترة:' : 'Period:'} {monthName}</div>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 20px', marginBottom: 16 }}>
+                            {[
+                                [isAr ? 'الاسم' : 'Name', `${payslip.first_name} ${payslip.last_name}`],
+                                [isAr ? 'الرقم' : 'ID', payslip.employee_number],
+                                [isAr ? 'القسم' : 'Dept', payslip.department],
+                                [isAr ? 'الوظيفة' : 'Position', payslip.position || '—'],
+                            ].map(([label, value]) => (
+                                <div key={label} style={{ padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
+                                    <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 1 }}>{label}</div>
+                                    <div style={{ fontWeight: 600, fontSize: '0.85rem' }}>{value}</div>
                                 </div>
-                                <div style={{ textAlign: 'right' }}>
-                                    {(() => { const sm = statusMeta(payslip.status); return (
-                                        <span style={{ background: sm.bg, color: sm.color, fontWeight: 700, fontSize: '0.78rem', borderRadius: 6, padding: '4px 12px', border: `1px solid ${sm.color}40` }}>
-                                            {isAr ? sm.labelAr : sm.label}
-                                        </span>
-                                    ); })()}
+                            ))}
+                        </div>
+                        <div style={{ marginBottom: 12 }}>
+                            <div style={{ fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 8 }}>{isAr ? 'الاستحقاقات' : 'EARNINGS'}</div>
+                            {[
+                                [isAr ? 'الراتب الأساسي' : 'Base Salary', payslip.base_salary],
+                                [isAr ? 'بدل السكن' : 'Housing', payslip.housing_allowance],
+                                [isAr ? 'بدل المواصلات' : 'Transport', payslip.transport_allowance],
+                                [isAr ? 'بدلات أخرى' : 'Other', payslip.other_allowance],
+                                [isAr ? 'أجر إضافي' : 'Overtime', payslip.overtime_pay],
+                                [isAr ? 'مكافأة' : 'Bonus', payslip.annual_incentive],
+                            ].filter(([, v]) => Number(v || 0) > 0).map(([label, value]) => (
+                                <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: '1px solid var(--border)', fontSize: '0.82rem' }}>
+                                    <span style={{ color: 'var(--text-muted)' }}>{label}</span>
+                                    <span style={{ fontWeight: 600 }}>{fmt(value)} SAR</span>
                                 </div>
-                            </div>
-
-                            {/* Employee info */}
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 40px', marginBottom: 28 }}>
-                                {[
-                                    [isAr ? 'اسم الموظف' : 'Employee Name', `${payslip.first_name} ${payslip.last_name}`],
-                                    [isAr ? 'رقم الموظف' : 'Employee ID', payslip.employee_number],
-                                    [isAr ? 'القسم' : 'Department', payslip.department],
-                                    [isAr ? 'المسمى الوظيفي' : 'Position', payslip.position || '—'],
-                                ].map(([label, value]) => (
-                                    <div key={label} style={{ padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
-                                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>{label}</div>
-                                        <div style={{ fontWeight: 600, color: 'var(--text)', fontSize: '0.9rem' }}>{value}</div>
-                                    </div>
-                                ))}
-                            </div>
-
-                            {/* Earnings */}
-                            <div style={{ marginBottom: 20 }}>
-                                <div style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 10 }}>
-                                    {isAr ? 'الاستحقاقات' : 'EARNINGS'}
-                                </div>
-                                {[
-                                    [isAr ? 'الراتب الأساسي' : 'Base Salary', payslip.base_salary],
-                                    [isAr ? 'بدل السكن' : 'Housing Allowance', payslip.housing_allowance],
-                                    [isAr ? 'بدل المواصلات' : 'Transport Allowance', payslip.transport_allowance],
-                                    [isAr ? 'بدلات أخرى' : 'Other Allowance', payslip.other_allowance],
-                                    [isAr ? 'أجر إضافي' : 'Overtime Pay', payslip.overtime_pay],
-                                    [isAr ? 'مكافأة' : 'Bonus', payslip.annual_incentive],
-                                ].filter(([, v]) => Number(v || 0) > 0).map(([label, value]) => (
-                                    <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderBottom: '1px solid var(--border)', fontSize: '0.875rem' }}>
-                                        <span style={{ color: 'var(--text-muted)' }}>{label}</span>
-                                        <span style={{ fontWeight: 600 }}>{fmt(value)} SAR</span>
-                                    </div>
-                                ))}
-                                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', fontSize: '0.9rem', fontWeight: 700, color: '#0ea5e9' }}>
-                                    <span>{isAr ? 'إجمالي الراتب' : 'Gross Pay'}</span>
-                                    <span>{fmt(payslip.gross_pay)} SAR</span>
-                                </div>
-                            </div>
-
-                            {/* Deductions */}
+                            ))}
                             {Number(payslip.absence_deduction || 0) > 0 && (
-                                <div style={{ marginBottom: 20 }}>
-                                    <div style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 10 }}>
-                                        {isAr ? 'الخصومات' : 'DEDUCTIONS'}
-                                    </div>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '9px 0', borderBottom: '1px solid var(--border)', fontSize: '0.875rem' }}>
-                                        <span style={{ color: 'var(--text-muted)' }}>{isAr ? 'خصم الغياب' : 'Absence Deduction'}</span>
-                                        <span style={{ color: 'var(--danger)', fontWeight: 600 }}>-{fmt(payslip.absence_deduction)} SAR</span>
-                                    </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: '1px solid var(--border)', fontSize: '0.82rem' }}>
+                                    <span style={{ color: '#ef4444' }}>{isAr ? 'خصم الغياب' : 'Absence Deduction'}</span>
+                                    <span style={{ fontWeight: 600, color: '#ef4444' }}>-{fmt(payslip.absence_deduction)} SAR</span>
                                 </div>
                             )}
-
-                            {/* Attendance */}
-                            <div style={{ marginBottom: 24 }}>
-                                <div style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 10 }}>
-                                    {isAr ? 'سجل الحضور' : 'ATTENDANCE'}
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+                            {[
+                                [isAr ? 'أيام العمل' : 'Working', payslip.working_days],
+                                [isAr ? 'حضور' : 'Present', payslip.days_worked],
+                                [isAr ? 'غياب' : 'Absent', payslip.days_absent],
+                                [isAr ? 'أجر إضافي' : 'OT Hrs', payslip.overtime_hours],
+                            ].map(([label, value]) => (
+                                <div key={label} style={{ flex: 1, minWidth: 60, textAlign: 'center', padding: '8px 4px', background: 'var(--bg2)', borderRadius: 8 }}>
+                                    <div style={{ fontWeight: 700, fontSize: '1rem' }}>{value ?? 0}</div>
+                                    <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginTop: 1 }}>{label}</div>
                                 </div>
-                                <div style={{ display: 'flex', gap: 16 }}>
-                                    {[
-                                        [isAr ? 'أيام العمل' : 'Working Days', payslip.working_days],
-                                        [isAr ? 'أيام الحضور' : 'Days Present', payslip.days_worked],
-                                        [isAr ? 'أيام الغياب' : 'Days Absent', payslip.days_absent],
-                                        [isAr ? 'ساعات إضافية' : 'Overtime Hrs', payslip.overtime_hours],
-                                    ].map(([label, value]) => (
-                                        <div key={label} style={{ flex: 1, textAlign: 'center', padding: '12px 8px', background: 'var(--surface2)', borderRadius: 8 }}>
-                                            <div style={{ fontWeight: 700, fontSize: '1.1rem', color: 'var(--text)' }}>{value ?? 0}</div>
-                                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 2 }}>{label}</div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Net pay total */}
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', background: 'rgba(16,185,129,0.1)', borderRadius: 10, border: '1px solid rgba(16,185,129,0.3)' }}>
-                                <span style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--text)' }}>{isAr ? 'صافي الراتب' : 'NET PAY'}</span>
-                                <span style={{ fontWeight: 800, fontSize: '1.4rem', color: '#10b981' }}>{fmt(payslip.net_pay)} SAR</span>
-                            </div>
+                            ))}
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 16px', background: 'rgba(16,185,129,0.1)', borderRadius: 12, border: '1px solid rgba(16,185,129,0.3)' }}>
+                            <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>{isAr ? 'صافي الراتب' : 'NET PAY'}</span>
+                            <span style={{ fontWeight: 800, fontSize: '1.3rem', color: '#10b981' }}>{fmt(payslip.net_pay)} SAR</span>
                         </div>
                     </div>
                 </div>
