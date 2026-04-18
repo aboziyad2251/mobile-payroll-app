@@ -527,6 +527,98 @@ export const generatePayslipPDF = async (id, payrollRecord) => {
     return wrap({ success: true });
 };
 
+// ─── WPS / ESTABLISHMENTS ─────────────────────────────────────────────────────
+
+export const getEstablishment = async () => {
+    const { data, error } = await db.from('establishments').select('*').limit(1);
+    if (error) return wrap(null);
+    return wrap(data?.[0] || null);
+};
+
+export const saveEstablishment = async (fields) => {
+    const { data: existing } = await db.from('establishments').select('id').limit(1);
+    let result;
+    if (existing?.[0]?.id) {
+        const { data, error } = await db.from('establishments').update(fields).eq('id', existing[0].id).select();
+        if (error) throw new Error(error.message);
+        result = data?.[0];
+    } else {
+        const { data, error } = await db.from('establishments').insert([fields]).select();
+        if (error) throw new Error(error.message);
+        result = data?.[0];
+    }
+    return wrap(result);
+};
+
+export const updateEmployeeWPS = async (id, { national_id, iban, bank_code, bank_name }) => {
+    const { data, error } = await db.from('employees')
+        .update({ national_id, iban, bank_code, bank_name })
+        .eq('id', id).select();
+    if (error) throw new Error(error.message);
+    return wrap(data?.[0]);
+};
+
+export const generateWPSSIF = async ({ month, year }) => {
+    // Fetch establishment
+    const { data: estab } = await getEstablishment();
+    if (!estab?.employer_id) throw new Error('Establishment info missing. Fill WPS settings first.');
+
+    // Fetch payroll records with employee details
+    const { data: payrollRows } = await getPayroll({ month, year });
+    const paidRows = (payrollRows || []).filter(r => r.status === 'paid' || r.status === 'processed');
+    if (!paidRows.length) throw new Error('No processed payroll records found for this period.');
+
+    // Fetch employee WPS fields
+    const empIds = [...new Set(paidRows.map(r => r.employee_id))];
+    const { data: emps } = await db.from('employees')
+        .select('id, national_id, iban, bank_code, bank_name, base_salary')
+        .in('id', empIds);
+    const empMap = Object.fromEntries((emps || []).map(e => [e.id, e]));
+
+    const paymentDate = `${year}${String(month).padStart(2, '0')}01`;
+    const totalNet = paidRows.reduce((s, r) => s + Number(r.net_pay || 0), 0);
+
+    // SAMA SIF format
+    const lines = [];
+    // Header
+    lines.push(`H,${estab.employer_id},${paymentDate},${paidRows.length},${totalNet.toFixed(2)}`);
+
+    const violations = [];
+    paidRows.forEach(rec => {
+        const emp = empMap[rec.employee_id] || {};
+        const basicPaid   = Number(rec.base_salary || 0).toFixed(2);
+        const housingPaid = Number(rec.housing_allowance || 0).toFixed(2);
+        const otherPaid   = (Number(rec.transport_allowance || 0) + Number(rec.other_allowance || 0) + Number(rec.annual_incentive || 0)).toFixed(2);
+        const deductions  = Number(rec.deductions || 0).toFixed(2);
+        const gosiDeduct  = Number(rec.gosi_deduction || 0).toFixed(2);
+        const netSalary   = Number(rec.net_pay || 0).toFixed(2);
+
+        // 80% rule check — net must be >= 80% of base_salary
+        const gosiBase = Number(emp.base_salary || rec.base_salary || 0);
+        if (gosiBase > 0 && Number(netSalary) < gosiBase * 0.8) {
+            violations.push(`${rec.first_name} ${rec.last_name} (${emp.national_id || 'N/A'})`);
+        }
+
+        lines.push([
+            'D',
+            emp.national_id || '',
+            emp.bank_code || '',
+            (emp.iban || '').replace(/\s/g, ''),
+            basicPaid,
+            housingPaid,
+            otherPaid,
+            deductions,
+            netSalary,
+            'Normal Salary',
+        ].join(','));
+    });
+
+    // Trailer
+    lines.push(`T,${paidRows.length},${totalNet.toFixed(2)}`);
+
+    return wrap({ content: lines.join('\r\n'), violations, count: paidRows.length, total: totalNet });
+};
+
 // ─── SETTINGS ─────────────────────────────────────────────────────────────────
 
 export const getSettings = async () => {

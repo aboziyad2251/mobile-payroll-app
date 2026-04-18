@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { DollarSign, Calculator, FileText, TrendingDown, Printer, X, Gift, ChevronDown, ChevronUp } from 'lucide-react';
+import { DollarSign, Calculator, FileText, TrendingDown, Printer, X, Gift, ChevronDown, ChevronUp, ShieldCheck, Download, AlertTriangle, Building2, Save } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { getPayroll, calculatePayroll, getPayrollSummary, generatePayslipPDF, getEmployees, calculateEOSB, updatePayrollStatus, updatePayrollBonus } from '../services/api';
+import { getPayroll, calculatePayroll, getPayrollSummary, generatePayslipPDF, getEmployees, calculateEOSB, updatePayrollStatus, updatePayrollBonus, getEstablishment, saveEstablishment, generateWPSSIF } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 
@@ -39,6 +39,12 @@ export default function Payroll() {
     const [eosbResult, setEosbResult] = useState(null);
     const [expandedId, setExpandedId] = useState(null);
 
+    // WPS state
+    const [estab, setEstab] = useState({ employer_id: '', cr_number: '', bank_iban: '', bank_name: '', company_name_en: '', company_name_ar: '' });
+    const [estabSaving, setEstabSaving] = useState(false);
+    const [wpsGenerating, setWpsGenerating] = useState(false);
+    const [wpsViolations, setWpsViolations] = useState([]);
+
     const load = () => {
         setLoading(true);
         Promise.all([
@@ -49,6 +55,37 @@ export default function Payroll() {
     };
     useEffect(load, [month, year]);
     useEffect(() => { getEmployees({ status: 'active', ids: subordinateIds }).then(r => setEmployees(r.data || [])).catch(() => {}); }, [subordinateIds]);
+    useEffect(() => { getEstablishment().then(r => { if (r.data) setEstab(e => ({ ...e, ...r.data })); }).catch(() => {}); }, []);
+
+    const handleSaveEstab = async () => {
+        setEstabSaving(true);
+        try {
+            await saveEstablishment(estab);
+            toast.success(isAr ? 'تم حفظ بيانات المنشأة' : 'Establishment saved');
+        } catch (err) { toast.error(err.message); }
+        finally { setEstabSaving(false); }
+    };
+
+    const handleGenerateSIF = async () => {
+        setWpsGenerating(true);
+        setWpsViolations([]);
+        try {
+            const { data } = await generateWPSSIF({ month, year });
+            setWpsViolations(data.violations || []);
+            // Download the file
+            const blob = new Blob([data.content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `WPS_SIF_${year}_${String(month).padStart(2, '0')}.sif`;
+            a.click();
+            URL.revokeObjectURL(url);
+            toast.success(isAr
+                ? `تم توليد ملف SIF — ${data.count} موظف، صافي: ${Number(data.total).toLocaleString()} ر.س`
+                : `SIF generated — ${data.count} employees, net: SAR ${Number(data.total).toLocaleString()}`);
+        } catch (err) { toast.error(err.message); }
+        finally { setWpsGenerating(false); }
+    };
 
     const handleEOSB = () => {
         const emp = employees.find(e => String(e.id) === String(eosbEmpId));
@@ -162,13 +199,17 @@ export default function Payroll() {
 
             {/* Tab switcher */}
             <div style={{ display: 'flex', gap: 4, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: 4, marginBottom: 20 }}>
-                {[{ id: 'payroll', label: t('pay.title'), icon: DollarSign }, { id: 'eosb', label: isAr ? 'مكافأة نهاية الخدمة' : 'EOSB Calc', icon: TrendingDown }].map(({ id, label, icon: Icon }) => (
+                {[
+                    { id: 'payroll', label: t('pay.title'), icon: DollarSign },
+                    { id: 'eosb', label: isAr ? 'نهاية خدمة' : 'EOSB', icon: TrendingDown },
+                    { id: 'wps', label: 'WPS / SIF', icon: ShieldCheck },
+                ].map(({ id, label, icon: Icon }) => (
                     <button key={id} onClick={() => setTab(id)} style={{
-                        flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '9px 10px', borderRadius: 7,
+                        flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '9px 6px', borderRadius: 7,
                         border: 'none', background: tab === id ? 'var(--primary)' : 'transparent',
-                        color: tab === id ? 'white' : 'var(--text-muted)', fontWeight: 600, fontSize: '0.82rem', cursor: 'pointer', fontFamily: 'inherit',
+                        color: tab === id ? 'white' : 'var(--text-muted)', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'inherit',
                     }}>
-                        <Icon size={14} /> {label}
+                        <Icon size={13} /> {label}
                     </button>
                 ))}
             </div>
@@ -233,6 +274,113 @@ export default function Payroll() {
                             ))}
                         </div>
                     )}
+                </div>
+            )}
+
+            {/* ── WPS TAB ── */}
+            {tab === 'wps' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+                    {/* Establishment Card */}
+                    <div style={{ background: 'var(--surface)', borderRadius: 18, border: '1px solid var(--border)', padding: 20 }}>
+                        <h3 style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <Building2 size={17} color="var(--primary)" />
+                            {isAr ? 'بيانات المنشأة (WPS)' : 'Establishment Info (WPS)'}
+                        </h3>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 16 }}>
+                            {isAr ? 'هذه البيانات تُستخدم في رأس ملف SIF المرسل للبنك' : 'Used in the SIF file header sent to the bank'}
+                        </p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                                <div className="form-group">
+                                    <label className="form-label">{isAr ? 'رقم المنشأة (MOL 10 أرقام)' : 'Employer MOL ID (10 digits)'}</label>
+                                    <input className="form-control" value={estab.employer_id} maxLength={10}
+                                        onChange={e => setEstab(s => ({ ...s, employer_id: e.target.value }))}
+                                        placeholder="1234567890" />
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">{isAr ? 'رقم السجل التجاري' : 'CR Number'}</label>
+                                    <input className="form-control" value={estab.cr_number}
+                                        onChange={e => setEstab(s => ({ ...s, cr_number: e.target.value }))}
+                                        placeholder="1010XXXXXXX" />
+                                </div>
+                            </div>
+                            <div className="form-group">
+                                <label className="form-label">{isAr ? 'IBAN الشركة (للدفع)' : 'Company IBAN (payer)'}</label>
+                                <input className="form-control" value={estab.bank_iban}
+                                    onChange={e => setEstab(s => ({ ...s, bank_iban: e.target.value }))}
+                                    placeholder="SA00 0000 0000 0000 0000 0000" />
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                                <div className="form-group">
+                                    <label className="form-label">{isAr ? 'اسم الشركة (إنجليزي)' : 'Company Name (EN)'}</label>
+                                    <input className="form-control" value={estab.company_name_en}
+                                        onChange={e => setEstab(s => ({ ...s, company_name_en: e.target.value }))} />
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">{isAr ? 'اسم الشركة (عربي)' : 'Company Name (AR)'}</label>
+                                    <input className="form-control" value={estab.company_name_ar}
+                                        onChange={e => setEstab(s => ({ ...s, company_name_ar: e.target.value }))} />
+                                </div>
+                            </div>
+                            <button className="btn btn-primary" onClick={handleSaveEstab} disabled={estabSaving}
+                                style={{ alignSelf: 'flex-start', display: 'flex', gap: 6 }}>
+                                <Save size={15} />
+                                {estabSaving ? (isAr ? 'جاري الحفظ...' : 'Saving...') : (isAr ? 'حفظ بيانات المنشأة' : 'Save Establishment')}
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Generate SIF */}
+                    <div style={{ background: 'var(--surface)', borderRadius: 18, border: '1px solid var(--border)', padding: 20 }}>
+                        <h3 style={{ fontWeight: 700, fontSize: '0.95rem', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <ShieldCheck size={17} color="#10b981" />
+                            {isAr ? 'توليد ملف WPS SIF' : 'Generate WPS SIF File'}
+                        </h3>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 12 }}>
+                            {isAr
+                                ? `سيتم توليد ملف SIF للفترة: ${monthName} — يشمل السجلات ذات الحالة "محسوب" أو "مدفوع"`
+                                : `Generates SIF for: ${monthName} — includes records with status "Processed" or "Paid"`}
+                        </p>
+
+                        {/* 80% rule warning */}
+                        {wpsViolations.length > 0 && (
+                            <div style={{ padding: '12px 14px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 12, marginBottom: 14 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, fontWeight: 700, fontSize: '0.82rem', color: '#ef4444' }}>
+                                    <AlertTriangle size={15} />
+                                    {isAr ? 'تحذير: انتهاك قاعدة 80% (WPS)' : '80% Rule Violations (MHRSD Alert)'}
+                                </div>
+                                <p style={{ fontSize: '0.73rem', color: '#f87171', marginBottom: 8 }}>
+                                    {isAr ? 'هؤلاء الموظفون سيحصلون على أقل من 80% من راتبهم المسجل في التأمينات الاجتماعية:' : 'These employees will receive less than 80% of their GOSI-registered salary:'}
+                                </p>
+                                {wpsViolations.map((v, i) => (
+                                    <div key={i} style={{ fontSize: '0.78rem', color: '#f87171', padding: '3px 0' }}>⚠ {v}</div>
+                                ))}
+                            </div>
+                        )}
+
+                        <button onClick={handleGenerateSIF} disabled={wpsGenerating}
+                            style={{
+                                width: '100%', padding: '13px', borderRadius: 14, border: 'none', cursor: 'pointer',
+                                background: 'linear-gradient(135deg, #10b981, #059669)',
+                                color: '#fff', fontWeight: 700, fontSize: '0.9rem',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                                boxShadow: '0 4px 16px rgba(16,185,129,0.35)',
+                            }}>
+                            <Download size={18} />
+                            {wpsGenerating
+                                ? (isAr ? 'جاري التوليد...' : 'Generating...')
+                                : (isAr ? `تنزيل ملف SIF — ${monthName}` : `Download SIF File — ${monthName}`)}
+                        </button>
+
+                        {/* Compliance notes */}
+                        <div style={{ marginTop: 14, padding: '12px 14px', background: 'rgba(99,102,241,0.08)', borderRadius: 12, fontSize: '0.73rem', color: 'var(--text-muted)', lineHeight: 1.7 }}>
+                            <div style={{ fontWeight: 700, color: 'var(--primary)', marginBottom: 4 }}>📋 {isAr ? 'متطلبات WPS (SAMA/MHRSD)' : 'WPS Compliance Notes (SAMA/MHRSD)'}</div>
+                            <div>• {isAr ? 'تأكد من إدخال IBAN وبيانات الهوية الوطنية لكل موظف في صفحة الموظفين' : 'Ensure each employee has IBAN + National ID filled in the Employees page'}</div>
+                            <div>• {isAr ? 'صافي الراتب يجب ألا يقل عن 80% من الراتب المسجل في التأمينات (GOSI)' : 'Net salary must be ≥ 80% of GOSI-registered salary or MHRSD flags a violation'}</div>
+                            <div>• {isAr ? 'أرسل الملف للبنك قبل نهاية الشهر لتجنب غرامات حماية الأجور' : 'Submit the file to your bank before month-end to avoid WPS penalties'}</div>
+                        </div>
+                    </div>
                 </div>
             )}
 
