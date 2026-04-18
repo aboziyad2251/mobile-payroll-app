@@ -5,6 +5,7 @@ import './index.css';
 import { LanguageProvider } from './context/LanguageContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
+import DeviceSimulator from './components/DeviceSimulator';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
     <React.StrictMode>
@@ -12,6 +13,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
             <LanguageProvider>
                 <AuthProvider>
                     <App />
+                    <DeviceSimulator />
                 </AuthProvider>
             </LanguageProvider>
         </ThemeProvider>

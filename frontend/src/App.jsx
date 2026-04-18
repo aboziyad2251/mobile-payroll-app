@@ -8,7 +8,7 @@ import {
     Bell, CheckCheck, CalendarCheck, CalendarX,
     Search, LayoutGrid, ShoppingCart, Fingerprint
 } from 'lucide-react';
-import { getNotifications, markNotificationRead, markAllNotificationsRead } from './services/api';
+import { getNotifications, markNotificationRead, markAllNotificationsRead, getSettings } from './services/api';
 
 import Dashboard from './pages/Dashboard';
 import Employees from './pages/Employees';
@@ -425,8 +425,13 @@ function BottomNav() {
 
 export default function App() {
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [companyName, setCompanyName] = useState('');
     const { lang } = useLanguage();
-    const { user, role, loading, fullName } = useAuth();
+    const { user, role, loading, fullName, logout } = useAuth();
+
+    useEffect(() => {
+        getSettings().then(r => setCompanyName(r.data?.company_name || '')).catch(() => {});
+    }, []);
 
     // Dynamic toast style based on theme
     const toastStyle = {
@@ -448,24 +453,61 @@ export default function App() {
                     <div className="mobile-header" dir={lang === 'ar' ? 'rtl' : 'ltr'}>
                         {/* Left: Logo */}
                         <Logo lang={lang} size="sm" />
-                        {/* Right: greeting + avatar */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            <div style={{ textAlign: lang === 'ar' ? 'right' : 'left' }}>
-                                <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', lineHeight: 1 }}>
-                                    {lang === 'ar' ? 'مرحباً' : 'Welcome'} 👋
-                                </div>
-                                <div style={{ fontSize: '0.88rem', fontWeight: 800, color: 'var(--text)' }}>
-                                    {fullName || 'User'}
+
+                        {/* Center: Company name */}
+                        <div style={{
+                            position: 'absolute', left: '50%', transform: 'translateX(-50%)',
+                            textAlign: 'center', pointerEvents: 'none',
+                        }}>
+                            <div style={{ fontSize: '0.78rem', fontWeight: 800, color: 'var(--text)', whiteSpace: 'nowrap' }}>
+                                {companyName || (lang === 'ar' ? 'اسم الشركة' : 'Company Name')}
+                            </div>
+                            <div style={{ fontSize: '0.58rem', fontWeight: 500, color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                                {lang === 'ar' ? 'الشركة' : 'Company'}
+                            </div>
+                        </div>
+
+                        {/* Right: avatar + user info stacked below it */}
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: lang === 'ar' ? 'flex-start' : 'flex-end', gap: 4 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <div style={{
+                                    width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+                                    background: 'linear-gradient(135deg, #7c3aed, #4f46e5)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    boxShadow: '0 4px 12px rgba(124,58,237,0.4)',
+                                    fontSize: '0.95rem', fontWeight: 800, color: 'white',
+                                }}>
+                                    {(fullName || 'U')[0].toUpperCase()}
                                 </div>
                             </div>
                             <div style={{
-                                width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
-                                background: 'linear-gradient(135deg, #7c3aed, #4f46e5)',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                boxShadow: '0 4px 12px rgba(124,58,237,0.4)',
-                                fontSize: '1rem', fontWeight: 800, color: 'white',
+                                fontSize: '0.75rem', fontWeight: 700, color: 'var(--text)',
+                                maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                             }}>
-                                {(fullName || 'U')[0].toUpperCase()}
+                                {fullName || 'User'}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 1 }}>
+                                <span style={{
+                                    fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase',
+                                    letterSpacing: '0.07em',
+                                    color: role === 'admin' ? '#818cf8' : role === 'manager' ? '#38bdf8' : '#34d399',
+                                }}>
+                                    {role === 'admin'
+                                        ? (lang === 'ar' ? 'الرئيس التنفيذي' : 'CEO')
+                                        : role === 'manager'
+                                            ? (lang === 'ar' ? 'مدير' : 'Manager')
+                                            : (lang === 'ar' ? 'موظف' : 'Employee')}
+                                </span>
+                                <button onClick={logout} title={lang === 'ar' ? 'تسجيل الخروج' : 'Sign out'}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: 3,
+                                        background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)',
+                                        borderRadius: 6, padding: '2px 7px', color: '#f87171',
+                                        cursor: 'pointer', fontSize: '0.6rem', fontWeight: 700, fontFamily: 'inherit', lineHeight: 1.4,
+                                    }}>
+                                    <LogOut size={10} />
+                                    {lang === 'ar' ? 'خروج' : 'Sign out'}
+                                </button>
                             </div>
                         </div>
                     </div>

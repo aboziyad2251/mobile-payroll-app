@@ -4,7 +4,12 @@ import translations from '../i18n/translations';
 const LanguageContext = createContext(null);
 
 export function LanguageProvider({ children }) {
-    const [lang, setLang] = useState(() => localStorage.getItem('payroll_lang') || 'en');
+    const [lang, setLang] = useState(() => {
+        const saved = localStorage.getItem('payroll_lang');
+        if (saved) return saved;
+        const browser = (navigator.language || '').toLowerCase();
+        return browser.startsWith('ar') ? 'ar' : 'en';
+    });
 
     useEffect(() => {
         const dir = lang === 'ar' ? 'rtl' : 'ltr';

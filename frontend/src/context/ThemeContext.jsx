@@ -3,9 +3,10 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 const ThemeContext = createContext(null);
 
 export const THEMES = [
-    { id: 'dark', label: 'Dark', labelAr: 'داكن', icon: '◗' },
-    { id: 'light', label: 'Light', labelAr: 'فاتح', icon: '☀' },
-    { id: 'corporate', label: 'Blue', labelAr: 'أزرق', icon: '●' },
+    { id: 'dark',      label: 'Dark',      labelAr: 'داكن',    icon: '◗' },
+    { id: 'light',     label: 'Light',     labelAr: 'فاتح',    icon: '☀' },
+    { id: 'corporate', label: 'Blue',      labelAr: 'أزرق',    icon: '●' },
+    { id: 'offwhite',  label: 'Off White', labelAr: 'أوف وايت', icon: '◎' },
 ];
 
 export function ThemeProvider({ children }) {

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
     Clock, Users, CalendarDays, DollarSign, TrendingUp,
-    Briefcase, AlertTriangle, BarChart2, CalendarRange, ChevronRight,
+    Briefcase, AlertTriangle, BarChart2, CalendarRange,
     UserCheck, UserX
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
@@ -92,37 +92,34 @@ export default function Dashboard() {
                 </div>
             </div>
 
-            {/* ── Overview Cards ────────────────────────── */}
+            {/* ── Overview Cards — compact row ──────────── */}
             <div className="esshub-overview">
                 {[
-                    { icon: UserCheck, label: isAr ? 'الحاضرون اليوم' : 'Present Today',  value: att?.present || 0,  color: '#34d399', bg: 'rgba(52,211,153,0.12)',  to: '/attendance' },
-                    { icon: UserX,     label: isAr ? 'الغائبون اليوم' : 'Absent Today',   value: att?.absent || 0,   color: '#f87171', bg: 'rgba(248,113,113,0.12)', to: '/attendance' },
-                    { icon: CalendarDays, label: isAr ? 'في إجازة'    : 'On Leave',       value: onLeave,            color: '#60a5fa', bg: 'rgba(96,165,250,0.12)',  to: '/leaves' },
-                    { icon: AlertTriangle, label: isAr ? 'طلبات معلقة' : 'Pending Leaves', value: pendingLeaves,      color: '#fbbf24', bg: 'rgba(251,191,36,0.12)',  to: '/leaves' },
+                    { icon: UserCheck,     label: isAr ? 'حاضر'    : 'Present',  value: att?.present || 0, color: '#34d399', bg: 'rgba(52,211,153,0.15)',  to: '/attendance' },
+                    { icon: UserX,         label: isAr ? 'غائب'    : 'Absent',   value: att?.absent || 0,  color: '#f87171', bg: 'rgba(248,113,113,0.15)', to: '/attendance' },
+                    { icon: CalendarDays,  label: isAr ? 'إجازة'   : 'On Leave', value: onLeave,           color: '#60a5fa', bg: 'rgba(96,165,250,0.15)',  to: '/leaves' },
+                    { icon: AlertTriangle, label: isAr ? 'معلقة'   : 'Pending',  value: pendingLeaves,     color: '#fbbf24', bg: 'rgba(251,191,36,0.15)',  to: '/leaves' },
                 ].map(({ icon: Icon, label, value, color, bg, to }) => (
                     <Link key={label} to={to} className="esshub-overview-card">
-                        <div style={{ width: 44, height: 44, borderRadius: 14, background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                            <Icon size={20} color={color} />
+                        <div style={{ width: 36, height: 36, borderRadius: '50%', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <Icon size={16} color={color} />
                         </div>
-                        <div>
-                            <div style={{ fontSize: '1.6rem', fontWeight: 800, color, lineHeight: 1 }}>{value}</div>
-                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 3 }}>{label}</div>
-                        </div>
-                        <ChevronRight size={16} color="var(--text-dim)" style={{ marginLeft: 'auto', flexShrink: 0, transform: isAr ? 'rotate(180deg)' : 'none' }} />
+                        <div style={{ fontSize: '1.2rem', fontWeight: 800, color, lineHeight: 1 }}>{value}</div>
+                        <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.2 }}>{label}</div>
                     </Link>
                 ))}
             </div>
 
             {/* ── Quick Access ──────────────────────────── */}
-            <div style={{ marginBottom: 24 }}>
+            <div style={{ marginBottom: 20 }}>
                 <div className="esshub-section-header">
                     <span>{isAr ? 'الوصول السريع' : 'Quick Access'}</span>
                 </div>
-                <div className="esshub-quick-scroll">
+                <div className="esshub-quick-grid">
                     {quickItems(isAr).map(({ icon: Icon, label, to, g }) => (
                         <Link key={to} to={to} className="esshub-quick-item">
-                            <div style={{ width: 56, height: 56, borderRadius: 18, background: g, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 16px rgba(0,0,0,0.35)' }}>
-                                <Icon size={22} color="white" />
+                            <div style={{ width: 48, height: 48, borderRadius: 15, background: g, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}>
+                                <Icon size={20} color="white" />
                             </div>
                             <span className="esshub-quick-label">{label}</span>
                         </Link>
