@@ -18,6 +18,7 @@ import Performance from './pages/Performance';
 import Payroll from './pages/Payroll';
 import SettingsPage from './pages/SettingsPage';
 import LoginPage from './pages/LoginPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import EmployeePortal from './pages/EmployeePortal';
 import UsersPage from './pages/UsersPage';
 import LeaveManagement from './pages/LeaveManagement';
@@ -439,6 +440,8 @@ export default function App() {
     };
 
     if (loading) return <LoadingScreen />;
+    // Allow unauthenticated access to reset-password page
+    if (window.location.pathname === '/reset-password') return <ResetPasswordPage />;
     if (!user) return <LoginPage />;
     if (role === 'pending') return <PendingScreen lang={lang} />;
     if (role === 'employee') return <EmployeePortal />;
