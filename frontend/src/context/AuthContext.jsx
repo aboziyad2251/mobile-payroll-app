@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import client from '../lib/insforge';
+import client, { padPassword } from '../lib/insforge';
 
 const AuthContext = createContext(null);
 
@@ -12,8 +12,9 @@ export function AuthProvider({ children }) {
     const [fullName, setFullName] = useState('');
     const [loading, setLoading] = useState(true);
     const [authError, setAuthError] = useState(null);
-    const [subordinateIds, setSubordinateIds] = useState(null); // null = no filter (admin/CEO), [] or [ids] = manager filter
+    const [subordinateIds, setSubordinateIds] = useState(null);
     const [appUserId, setAppUserId] = useState(null);
+    const [delegatedPermissions, setDelegatedPermissions] = useState([]);
 
     const fetchProfile = async (email) => {
         const { data } = await client.database
@@ -72,6 +73,14 @@ export function AuthProvider({ children }) {
         setFullName(profile.full_name || email);
         setAppUserId(profile.id || null);
 
+        // Load delegated permissions for managers
+        const perms = profile.delegated_permissions
+            ? (Array.isArray(profile.delegated_permissions)
+                ? profile.delegated_permissions
+                : JSON.parse(profile.delegated_permissions))
+            : [];
+        setDelegatedPermissions(perms);
+
         // Load subordinates for managers
         if (profile.role === 'manager' && profile.id) {
             const { data: subs } = await client.database
@@ -80,7 +89,7 @@ export function AuthProvider({ children }) {
                 .eq('manager_user_id', profile.id);
             setSubordinateIds((subs || []).map(s => s.employee_id));
         } else {
-            setSubordinateIds(null); // admin/CEO sees all
+            setSubordinateIds(null);
         }
     };
 
@@ -116,7 +125,15 @@ export function AuthProvider({ children }) {
                 email = profile.email;
             }
 
-            const { data, error } = await client.auth.signInWithPassword({ email, password });
+            // Try original password first (existing users), then padded (users created via New User form)
+            let { data, error } = await client.auth.signInWithPassword({ email, password });
+            if (error) {
+                const padded = padPassword(password);
+                if (padded !== password) {
+                    const retry = await client.auth.signInWithPassword({ email, password: padded });
+                    if (!retry.error) { data = retry.data; error = null; }
+                }
+            }
             if (error) throw error;
 
             const profile = await fetchProfile(email);
@@ -127,6 +144,12 @@ export function AuthProvider({ children }) {
             setEmployeeId(profile.employee_id || null);
             setFullName(profile.full_name || email);
             setAppUserId(profile.id || null);
+            const perms2 = profile.delegated_permissions
+                ? (Array.isArray(profile.delegated_permissions)
+                    ? profile.delegated_permissions
+                    : JSON.parse(profile.delegated_permissions))
+                : [];
+            setDelegatedPermissions(perms2);
             if (profile.role === 'manager' && profile.id) {
                 const { data: subs } = await client.database.from('manager_subordinates').select('employee_id').eq('manager_user_id', profile.id);
                 setSubordinateIds((subs || []).map(s => s.employee_id));
@@ -165,10 +188,16 @@ export function AuthProvider({ children }) {
         setFullName('');
         setSubordinateIds(null);
         setAppUserId(null);
+        setDelegatedPermissions([]);
     };
 
+    // Check if current user can perform a specific action
+    // admin and hr_manager always can; managers only if delegated
+    const canDo = (perm) =>
+        role === 'admin' || role === 'hr_manager' || delegatedPermissions.includes(perm);
+
     return (
-        <AuthContext.Provider value={{ user, role, employeeId, fullName, loading, authError, subordinateIds, appUserId, login, loginWithGoogle, logout }}>
+        <AuthContext.Provider value={{ user, role, employeeId, fullName, loading, authError, subordinateIds, appUserId, delegatedPermissions, canDo, login, loginWithGoogle, logout }}>
             {children}
         </AuthContext.Provider>
     );

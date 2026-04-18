@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import Logo from '../components/Logo';
-import { Globe, LogIn, Eye, EyeOff } from 'lucide-react';
+import client from '../lib/insforge';
+import { Globe, LogIn, Eye, EyeOff, ArrowLeft, Mail, CheckCircle } from 'lucide-react';
 
 function GoogleIcon() {
     return (
@@ -24,6 +25,10 @@ export default function LoginPage() {
     const [submitting, setSubmitting] = useState(false);
     const [googleLoading, setGoogleLoading] = useState(false);
     const [localError, setLocalError] = useState('');
+    const [forgotMode, setForgotMode] = useState(false);
+    const [resetEmail, setResetEmail] = useState('');
+    const [resetSent, setResetSent] = useState(false);
+    const [resetLoading, setResetLoading] = useState(false);
 
     const isAr = lang === 'ar';
 
@@ -54,6 +59,22 @@ export default function LoginPage() {
             setLocalError(err.message);
         } finally {
             setSubmitting(false);
+        }
+    };
+
+    const handleResetPassword = async (e) => {
+        e.preventDefault();
+        if (!resetEmail) return;
+        setResetLoading(true);
+        setLocalError('');
+        try {
+            const { error } = await client.auth.resetPassword({ email: resetEmail.trim() });
+            if (error) throw error;
+            setResetSent(true);
+        } catch (err) {
+            setLocalError(err.message || 'Failed to send reset email');
+        } finally {
+            setResetLoading(false);
         }
     };
 
@@ -223,6 +244,14 @@ export default function LoginPage() {
                             </button>
                         </div>
                     </div>
+                    {/* Forgot password link */}
+                    <div style={{ textAlign: isAr ? 'left' : 'right', marginTop: -8 }}>
+                        <button type="button" onClick={() => { setForgotMode(true); setResetEmail(email); setLocalError(''); setResetSent(false); }}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', fontSize: '0.78rem', fontWeight: 600, padding: 0, fontFamily: 'inherit' }}>
+                            {isAr ? 'نسيت كلمة المرور؟' : 'Forgot Password?'}
+                        </button>
+                    </div>
+
                     <button
                         type="submit"
                         className="btn btn-primary"
@@ -239,6 +268,73 @@ export default function LoginPage() {
                     © 2026 PayrollPro v1.0 · Technical Entrepreneurship (M. Abotargah)
                 </div>
             </div>
+
+            {/* Forgot Password overlay */}
+            {forgotMode && (
+                <div style={{
+                    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999, padding: 24,
+                }}>
+                    <div style={{
+                        width: '100%', maxWidth: 400, background: 'var(--surface)',
+                        borderRadius: 20, padding: '32px 28px', border: '1px solid var(--border)',
+                        boxShadow: 'var(--shadow-lg)', animation: 'slideUp 0.2s ease',
+                    }}>
+                        {resetSent ? (
+                            <div style={{ textAlign: 'center' }}>
+                                <CheckCircle size={48} color="#10b981" style={{ marginBottom: 16 }} />
+                                <h3 style={{ fontWeight: 800, fontSize: '1.1rem', marginBottom: 8 }}>
+                                    {isAr ? 'تم الإرسال!' : 'Email Sent!'}
+                                </h3>
+                                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: 24, lineHeight: 1.6 }}>
+                                    {isAr
+                                        ? `تم إرسال رابط إعادة تعيين كلمة المرور إلى ${resetEmail}. تحقق من بريدك الإلكتروني.`
+                                        : `A password reset link was sent to ${resetEmail}. Check your inbox.`}
+                                </p>
+                                <button className="btn btn-primary" onClick={() => setForgotMode(false)} style={{ width: '100%', justifyContent: 'center' }}>
+                                    {isAr ? 'العودة لتسجيل الدخول' : 'Back to Sign In'}
+                                </button>
+                            </div>
+                        ) : (
+                            <>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+                                    <button onClick={() => setForgotMode(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4 }}>
+                                        <ArrowLeft size={18} />
+                                    </button>
+                                    <h3 style={{ fontWeight: 800, fontSize: '1.05rem', margin: 0 }}>
+                                        {isAr ? 'إعادة تعيين كلمة المرور' : 'Reset Password'}
+                                    </h3>
+                                </div>
+                                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: 20, lineHeight: 1.6 }}>
+                                    {isAr
+                                        ? 'أدخل بريدك الإلكتروني وسنرسل لك رابط إعادة التعيين.'
+                                        : 'Enter your email and we\'ll send you a reset link.'}
+                                </p>
+                                {localError && (
+                                    <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', borderRadius: 8, padding: '8px 12px', marginBottom: 14, color: '#f87171', fontSize: '0.8rem' }}>
+                                        {localError}
+                                    </div>
+                                )}
+                                <form onSubmit={handleResetPassword} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6 }}>
+                                            {isAr ? 'البريد الإلكتروني' : 'Email Address'}
+                                        </label>
+                                        <input type="email" className="form-control" required value={resetEmail}
+                                            onChange={e => setResetEmail(e.target.value)}
+                                            placeholder="you@example.com" style={{ width: '100%' }} />
+                                    </div>
+                                    <button type="submit" className="btn btn-primary" disabled={resetLoading}
+                                        style={{ width: '100%', justifyContent: 'center', padding: '11px' }}>
+                                        <Mail size={16} />
+                                        {resetLoading ? (isAr ? 'جاري الإرسال...' : 'Sending...') : (isAr ? 'إرسال رابط الإعادة' : 'Send Reset Link')}
+                                    </button>
+                                </form>
+                            </>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

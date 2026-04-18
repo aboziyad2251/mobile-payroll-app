@@ -588,6 +588,8 @@ export const getLeaveRequests = async ({ status, employee_id, employeeIds } = {}
 export const submitLeaveRequest = async (body) => {
     const autoRejectAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
     const requesterRole = body.requester_role || 'employee';
+    // CEO leaves are auto-approved; everyone else starts as pending
+    const initialStatus = requesterRole === 'admin' ? 'approved' : 'pending';
     const { data, error } = await db.from('leave_requests').insert([{
         employee_id: body.employee_id,
         leave_type: body.leave_type,
@@ -595,9 +597,10 @@ export const submitLeaveRequest = async (body) => {
         end_date: body.end_date,
         days_count: body.days_count || 1,
         reason: body.reason,
-        status: 'pending',
-        auto_reject_at: autoRejectAt,
+        status: initialStatus,
+        auto_reject_at: initialStatus === 'approved' ? null : autoRejectAt,
         requester_role: requesterRole,
+        reviewed_by: initialStatus === 'approved' ? 'CEO' : null,
     }]).select();
     if (error) throw new Error(error.message);
 
@@ -631,6 +634,18 @@ export const submitLeaveRequest = async (body) => {
         }]);
     }
     return wrap(data[0]);
+};
+
+export const getCEOLeaves = async () => {
+    const { data: adminUsers } = await db.from('app_users').select('employee_id').eq('role', 'admin');
+    const empIds = (adminUsers || []).map(u => u.employee_id).filter(Boolean);
+    if (empIds.length === 0) return wrap([]);
+    const { data, error } = await db.from('leave_requests')
+        .select('*, employees(first_name, last_name, employee_number, department)')
+        .in('employee_id', empIds)
+        .order('created_at', { ascending: false });
+    if (error) return wrap([]);
+    return wrap((data || []).map(r => ({ ...r, ...r.employees, employees: undefined })));
 };
 
 export const approveLeaveRequest = async (id, reviewedBy = 'Admin', reqData = null) => {

@@ -71,7 +71,17 @@ export default function Employees({ role }) {
     useEffect(load, [search, filterDept, filterStatus]);
     useEffect(() => { getDepartments().then(r => setDepartments(r.data)).catch(() => { }); }, []);
 
-    const openAdd = () => { setForm(EMPTY_FORM); setEditId(null); setShowModal(true); };
+    const openAdd = () => {
+        // Auto-suggest next employee number based on highest existing one
+        const nums = employees
+            .map(e => parseInt((e.employee_number || '').replace(/\D/g, ''), 10))
+            .filter(n => !isNaN(n));
+        const next = nums.length > 0 ? Math.max(...nums) + 1 : 1;
+        const nextNum = `EMP-${String(next).padStart(3, '0')}`;
+        setForm({ ...EMPTY_FORM, employee_number: nextNum });
+        setEditId(null);
+        setShowModal(true);
+    };
     const openEdit = (emp) => {
         setForm({ ...emp, base_salary: emp.base_salary || '', housing_allowance: emp.housing_allowance || '', transport_allowance: emp.transport_allowance || '', other_allowance: emp.other_allowance || '', annual_incentive_multiplier: emp.annual_incentive_multiplier || '' });
         setEditId(emp.id); setShowModal(true);
@@ -83,7 +93,14 @@ export default function Employees({ role }) {
             if (editId) { await updateEmployee(editId, form); toast.success(t('emp.editEmployee')); }
             else { await createEmployee(form); toast.success(t('emp.addEmployee')); }
             setShowModal(false); load();
-        } catch (err) { toast.error(err.message || 'Error saving employee'); }
+        } catch (err) {
+            const msg = err.message || '';
+            if (msg.includes('employee_number') || msg.includes('duplicate key')) {
+                toast.error(t('emp.duplicateNumber') || `Employee number "${form.employee_number}" already exists — use a different one`);
+            } else {
+                toast.error(msg || 'Error saving employee');
+            }
+        }
         finally { setSaving(false); }
     };
 

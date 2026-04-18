@@ -6,6 +6,14 @@ const ANON_KEY = 'ik_8fa3ae69a4d375f96e3dea1b8541cdf1de6f83faa3e7454e118461f963a
 const client = createClient({ baseUrl: BASE_URL, anonKey: ANON_KEY });
 
 /**
+ * Insforge requires passwords ≥ 128 chars. Pad shorter passwords by repeating
+ * them to exactly 128 chars so CEO can set short human-friendly passwords.
+ * Login applies the same padding so authentication works transparently.
+ */
+export const padPassword = (pwd) =>
+    pwd.length >= 128 ? pwd : pwd.repeat(Math.ceil(128 / pwd.length)).slice(0, 128);
+
+/**
  * Create a new auth user WITHOUT overwriting the current admin session.
  * The SDK's signUp() calls saveSessionFromResponse() which logs you out
  * as admin and in as the new user. We bypass that by using raw fetch.
@@ -17,7 +25,7 @@ export const adminCreateAuthUser = async (email, password) => {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${ANON_KEY}`,
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password: padPassword(password) }),
         credentials: 'include',
     });
     if (res.status === 409) {

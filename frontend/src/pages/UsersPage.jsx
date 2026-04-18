@@ -2,28 +2,37 @@ import React, { useState, useEffect } from 'react';
 import { useLanguage } from '../context/LanguageContext';
 import client, { adminCreateAuthUser } from '../lib/insforge';
 import { getEmployees } from '../services/api';
-import { UserPlus, Trash2, ShieldCheck, Users, Search, X, UsersRound, Check } from 'lucide-react';
+import { UserPlus, Trash2, ShieldCheck, Users, Search, X, UsersRound, Check, Key } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { useAuth } from '../context/AuthContext';
 
 const SUPER_ADMIN_EMAIL = 'tarj123@gmail.com';
-const ROLES = ['admin', 'manager', 'employee', 'pending'];
+const ROLES = ['admin', 'manager', 'hr_manager', 'employee', 'pending'];
 
 const ROLE_LABELS = {
-    en: { admin: 'CEO', manager: 'Manager', employee: 'Employee', pending: 'Pending' },
-    ar: { admin: 'الرئيس التنفيذي', manager: 'مدير', employee: 'موظف', pending: 'في الانتظار' },
+    en: { admin: 'CEO', manager: 'Manager', hr_manager: 'HR Manager', employee: 'Employee', pending: 'Pending' },
+    ar: { admin: 'الرئيس التنفيذي', manager: 'مدير', hr_manager: 'مدير موارد بشرية', employee: 'موظف', pending: 'في الانتظار' },
 };
 
 const ROLE_COLORS = {
-    admin:    { bg: 'rgba(79,70,229,0.15)',  color: '#818cf8' },
-    manager:  { bg: 'rgba(14,165,233,0.15)', color: '#38bdf8' },
-    employee: { bg: 'rgba(16,185,129,0.15)', color: '#34d399' },
-    pending:  { bg: 'rgba(245,158,11,0.15)', color: '#fbbf24' },
+    admin:      { bg: 'rgba(79,70,229,0.15)',   color: '#818cf8' },
+    manager:    { bg: 'rgba(14,165,233,0.15)',  color: '#38bdf8' },
+    hr_manager: { bg: 'rgba(236,72,153,0.15)',  color: '#f472b6' },
+    employee:   { bg: 'rgba(16,185,129,0.15)',  color: '#34d399' },
+    pending:    { bg: 'rgba(245,158,11,0.15)',  color: '#fbbf24' },
 };
+
+const DELEGATION_OPTIONS = [
+    { key: 'approve_leaves',     en: 'Approve Leaves',     ar: 'الموافقة على الإجازات' },
+    { key: 'post_jobs',          en: 'Post Job Openings',  ar: 'نشر وظائف' },
+    { key: 'manage_employees',   en: 'Add / Remove Staff', ar: 'إضافة / إزالة موظفين' },
+];
 
 const db = client.database;
 
 export default function UsersPage() {
     const { lang } = useLanguage();
+    const { role: myRole } = useAuth();
     const isAr = lang === 'ar';
     const rl = ROLE_LABELS[lang] || ROLE_LABELS.en;
 
@@ -38,10 +47,15 @@ export default function UsersPage() {
     const [submitting, setSubmitting] = useState(false);
 
     // Subordinates panel
-    const [subManager, setSubManager] = useState(null); // user object whose subordinates we're editing
-    const [subSelected, setSubSelected] = useState([]); // employee ids selected
+    const [subManager, setSubManager] = useState(null);
+    const [subSelected, setSubSelected] = useState([]);
     const [subLoading, setSubLoading] = useState(false);
     const [subSaving, setSubSaving] = useState(false);
+
+    // Delegation panel (CEO only)
+    const [delegateUser, setDelegateUser] = useState(null);
+    const [delegatePerms, setDelegatePerms] = useState([]);
+    const [delegateSaving, setDelegateSaving] = useState(false);
 
     const fetchUsers = async () => {
         const { data, error } = await db.from('app_users').select('*');
@@ -65,7 +79,6 @@ export default function UsersPage() {
         if (!form.email || !form.password) return toast.error(isAr ? 'البريد وكلمة المرور مطلوبان' : 'Email and password required');
         setSubmitting(true);
         try {
-            // Use raw fetch to create auth user WITHOUT disrupting the admin's session
             await adminCreateAuthUser(form.email, form.password);
 
             // Check if profile already exists, then upsert
@@ -98,7 +111,7 @@ export default function UsersPage() {
                 }
             }
 
-            toast.success(isAr ? 'تم إنشاء المستخدم' : 'User created');
+            toast.success(isAr ? 'تم إنشاء المستخدم بنجاح' : 'User created successfully');
             setShowModal(false);
             setForm({ email: '', password: '', role: 'employee', full_name: '', manager_title: '', employee_id: '' });
             await fetchUsers();
@@ -150,6 +163,32 @@ export default function UsersPage() {
         finally { setSubSaving(false); }
     };
 
+    const openDelegation = (user) => {
+        const perms = user.delegated_permissions
+            ? (Array.isArray(user.delegated_permissions) ? user.delegated_permissions : JSON.parse(user.delegated_permissions || '[]'))
+            : [];
+        setDelegateUser(user);
+        setDelegatePerms(perms);
+    };
+
+    const togglePerm = (key) => setDelegatePerms(prev =>
+        prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
+    );
+
+    const saveDelegation = async () => {
+        setDelegateSaving(true);
+        try {
+            const { error } = await db.from('app_users')
+                .update({ delegated_permissions: JSON.stringify(delegatePerms) })
+                .eq('id', delegateUser.id);
+            if (error) throw new Error(error.message);
+            toast.success(isAr ? 'تم حفظ الصلاحيات المفوضة' : 'Delegation saved');
+            setUsers(u => u.map(x => x.id === delegateUser.id ? { ...x, delegated_permissions: JSON.stringify(delegatePerms) } : x));
+            setDelegateUser(null);
+        } catch (e) { toast.error(e.message); }
+        finally { setDelegateSaving(false); }
+    };
+
     const filtered = users.filter(u =>
         u.email?.toLowerCase().includes(search.toLowerCase()) ||
         u.full_name?.toLowerCase().includes(search.toLowerCase())
@@ -165,9 +204,11 @@ export default function UsersPage() {
                     </h2>
                     <p className="page-subtitle">{isAr ? 'إدارة الحسابات والصلاحيات والمرؤوسين' : 'Manage accounts, roles and subordinates'}</p>
                 </div>
-                <button className="btn btn-primary" onClick={() => setShowModal(true)}>
-                    <UserPlus size={16} /> {isAr ? 'مستخدم جديد' : 'New User'}
-                </button>
+                {myRole === 'admin' && (
+                    <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+                        <UserPlus size={16} /> {isAr ? 'مستخدم جديد' : 'New User'}
+                    </button>
+                )}
             </div>
 
             <div className="card">
@@ -213,7 +254,7 @@ export default function UsersPage() {
                                             </td>
                                             <td style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{u.email}</td>
                                             <td>
-                                                {isSuperAdmin ? (
+                                                {isSuperAdmin || myRole !== 'admin' ? (
                                                     <span style={{ background: rc.bg, color: rc.color, fontWeight: 700, fontSize: '0.78rem', borderRadius: 6, padding: '4px 10px' }}>{rl[u.role]}</span>
                                                 ) : (
                                                     <select value={u.role} onChange={e => handleRoleChange(u.id, e.target.value, u.email)}
@@ -226,12 +267,17 @@ export default function UsersPage() {
                                             <td style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>{u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}</td>
                                             <td>
                                                 <div style={{ display: 'flex', gap: 4 }}>
-                                                    {u.role === 'manager' && (
+                                                    {myRole === 'admin' && (u.role === 'manager' || u.role === 'hr_manager') && (
                                                         <button className="btn btn-ghost btn-sm" title={isAr ? 'إدارة المرؤوسين' : 'Manage Subordinates'} onClick={() => openSubordinates(u)} style={{ color: '#38bdf8' }}>
                                                             <UsersRound size={15} />
                                                         </button>
                                                     )}
-                                                    {!isSuperAdmin && (
+                                                    {myRole === 'admin' && (u.role === 'manager' || u.role === 'hr_manager') && (
+                                                        <button className="btn btn-ghost btn-sm" title={isAr ? 'تفويض الصلاحيات' : 'Delegate Permissions'} onClick={() => openDelegation(u)} style={{ color: '#f472b6' }}>
+                                                            <Key size={15} />
+                                                        </button>
+                                                    )}
+                                                    {myRole === 'admin' && !isSuperAdmin && (
                                                         <button className="btn btn-ghost btn-sm" onClick={() => handleDelete(u.id, u.email)} style={{ color: 'var(--danger)' }}>
                                                             <Trash2 size={15} />
                                                         </button>
@@ -266,7 +312,9 @@ export default function UsersPage() {
                             </div>
                             <div className="form-group">
                                 <label className="form-label">{isAr ? 'كلمة المرور' : 'Password'} *</label>
-                                <input type="password" className="form-control" required value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="Min 8 characters" />
+                                <input type="password" className="form-control" required value={form.password}
+                                    onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+                                    placeholder={isAr ? 'اكتب كلمة مرور للمستخدم' : 'Set a password for this user'} />
                             </div>
                             <div className="form-group">
                                 <label className="form-label">{isAr ? 'الصلاحية' : 'Role'}</label>
@@ -296,6 +344,52 @@ export default function UsersPage() {
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Delegation Modal — CEO only */}
+            {delegateUser && (
+                <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setDelegateUser(null)}>
+                    <div className="modal" style={{ maxWidth: 420 }}>
+                        <div className="modal-header">
+                            <h3 className="modal-title"><Key size={17} style={{ marginInlineEnd: 8 }} />{isAr ? 'تفويض الصلاحيات' : 'Delegate Permissions'} — {delegateUser.full_name}</h3>
+                            <button className="modal-close" onClick={() => setDelegateUser(null)}><X size={18} /></button>
+                        </div>
+                        <div style={{ padding: '12px 0 4px' }}>
+                            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: 16 }}>
+                                {isAr
+                                    ? 'اختر الصلاحيات التي تريد تفويضها لهذا المدير في حالة غيابك'
+                                    : 'Select permissions to delegate to this manager during your absence'}
+                            </p>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                {DELEGATION_OPTIONS.map(opt => {
+                                    const checked = delegatePerms.includes(opt.key);
+                                    return (
+                                        <div key={opt.key} onClick={() => togglePerm(opt.key)}
+                                            style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 12, cursor: 'pointer', background: checked ? 'rgba(244,114,182,0.08)' : 'var(--surface2)', border: checked ? '1px solid #f472b6' : '1px solid var(--border)', transition: 'all 0.15s' }}>
+                                            <div style={{ width: 22, height: 22, borderRadius: 6, border: `2px solid ${checked ? '#f472b6' : 'var(--border)'}`, background: checked ? '#f472b6' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                                {checked && <Check size={13} color="white" />}
+                                            </div>
+                                            <span style={{ fontWeight: checked ? 700 : 500, fontSize: '0.88rem', color: checked ? '#f472b6' : 'var(--text)' }}>
+                                                {isAr ? opt.ar : opt.en}
+                                            </span>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                            {delegatePerms.length === 0 && (
+                                <p style={{ marginTop: 12, fontSize: '0.75rem', color: 'var(--text-dim)', textAlign: 'center' }}>
+                                    {isAr ? 'لا توجد صلاحيات مفوضة — سيعمل المدير بصلاحياته الأصلية فقط' : 'No delegation — manager keeps default permissions only'}
+                                </p>
+                            )}
+                        </div>
+                        <div className="modal-footer">
+                            <button className="btn btn-secondary" onClick={() => setDelegateUser(null)}>{isAr ? 'إلغاء' : 'Cancel'}</button>
+                            <button className="btn btn-primary" onClick={saveDelegation} disabled={delegateSaving} style={{ background: '#f472b6', borderColor: '#f472b6' }}>
+                                <Key size={14} />{delegateSaving ? (isAr ? 'جاري الحفظ...' : 'Saving...') : (isAr ? 'حفظ التفويض' : 'Save Delegation')}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
