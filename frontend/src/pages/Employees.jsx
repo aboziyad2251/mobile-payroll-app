@@ -28,7 +28,24 @@ const EMPTY_FORM = {
     other_allowance: '', annual_incentive_multiplier: '', status: 'active',
     shift_type: 'first', shift_start: '09:00', shift_end: '16:00',
     days_off_count: 2, day_off_1: 'friday', day_off_2: 'saturday',
+    // WPS banking
+    national_id: '', iban: '', bank_code: '', bank_name: '',
 };
+
+const SAUDI_BANKS = [
+    { name: 'Al Rajhi Bank',          code: '1140' },
+    { name: 'National Commercial Bank (NCB / Al Ahli)', code: '1010' },
+    { name: 'Riyad Bank',             code: '1020' },
+    { name: 'Saudi British Bank (SABB)', code: '1030' },
+    { name: 'Arab National Bank',     code: '1040' },
+    { name: 'Banque Saudi Fransi',    code: '1050' },
+    { name: 'Saudi Investment Bank',  code: '1060' },
+    { name: 'Bank AlBilad',           code: '1080' },
+    { name: 'Alinma Bank',            code: '1150' },
+    { name: 'Bank Aljazira',          code: '1070' },
+    { name: 'Saudi National Bank (SNB)', code: '1180' },
+    { name: 'Gulf International Bank', code: '1160' },
+];
 
 const STATUS_COLORS = {
     active:     { color: '#10b981', bg: 'rgba(16,185,129,0.15)' },
@@ -416,6 +433,42 @@ export default function Employees({ role }) {
                                     <input className="form-control" type="number" step="0.01" value={form.other_allowance} onChange={e => set('other_allowance', e.target.value)} /></div>
                                 <div />
                             </div>
+
+                            {/* WPS / Banking Info */}
+                            <div className="divider" />
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                                <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#10b981', background: 'rgba(16,185,129,0.12)', borderRadius: 6, padding: '3px 8px' }}>WPS</span>
+                                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text)' }}>Banking Information</span>
+                                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>(required for SIF file)</span>
+                            </div>
+                            <div className="form-row">
+                                <div className="form-group">
+                                    <label className="form-label">National ID / Iqama</label>
+                                    <input className="form-control" value={form.national_id || ''} onChange={e => set('national_id', e.target.value)} placeholder="10 digits" maxLength={10} />
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Bank Name</label>
+                                    <select className="form-control" value={form.bank_name || ''} onChange={e => {
+                                        const selected = SAUDI_BANKS.find(b => b.name === e.target.value);
+                                        set('bank_name', e.target.value);
+                                        if (selected) set('bank_code', selected.code);
+                                    }}>
+                                        <option value="">— Select Bank —</option>
+                                        {SAUDI_BANKS.map(b => <option key={b.code} value={b.name}>{b.name}</option>)}
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="form-row">
+                                <div className="form-group">
+                                    <label className="form-label">Employee IBAN <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>(SA + 22 digits)</span></label>
+                                    <input className="form-control" value={form.iban || ''} onChange={e => set('iban', e.target.value.replace(/\s/g, ''))} placeholder="SA0000000000000000000000" maxLength={24} />
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">Bank Code <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>(auto-filled)</span></label>
+                                    <input className="form-control" value={form.bank_code || ''} onChange={e => set('bank_code', e.target.value)} placeholder="e.g. 1010" />
+                                </div>
+                            </div>
+
                             <div className="modal-footer">
                                 <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>{t('common.cancel')}</button>
                                 <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? t('common.saving') : editId ? t('emp.updateEmployee') : t('emp.addEmployee')}</button>
