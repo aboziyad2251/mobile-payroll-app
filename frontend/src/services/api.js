@@ -61,6 +61,10 @@ export const createEmployee = async (body) => {
         days_off_count: Number(body.days_off_count) || 2,
         day_off_1: body.day_off_1 || 'friday',
         day_off_2: Number(body.days_off_count) === 1 ? null : (body.day_off_2 || 'saturday'),
+        national_id: body.national_id || null,
+        iban: body.iban || null,
+        bank_code: body.bank_code || null,
+        bank_name: body.bank_name || null,
     }]).select();
     if (error) throw new Error(error.message);
     // Create initial leave balance
@@ -95,6 +99,10 @@ export const updateEmployee = async (id, body) => {
         days_off_count: Number(body.days_off_count) || 2,
         day_off_1: body.day_off_1 || 'friday',
         day_off_2: Number(body.days_off_count) === 1 ? null : (body.day_off_2 || 'saturday'),
+        national_id: body.national_id || null,
+        iban: body.iban || null,
+        bank_code: body.bank_code || null,
+        bank_name: body.bank_name || null,
     }).eq('id', id).select();
     if (error) throw new Error(error.message);
     return wrap(data[0]);
