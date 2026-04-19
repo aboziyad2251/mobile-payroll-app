@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import Logo from '../components/Logo';
 import client from '../lib/insforge';
-import { Globe, LogIn, Eye, EyeOff, ArrowLeft, Mail, CheckCircle } from 'lucide-react';
+import { Globe, LogIn, Eye, EyeOff, ArrowLeft, Mail, CheckCircle, Fingerprint } from 'lucide-react';
+
+const BIOMETRIC_KEY = 'payrollpro_biometric_enabled';
+const supportsCredentials = () => typeof window !== 'undefined' && 'credentials' in navigator && 'PasswordCredential' in window;
 
 function GoogleIcon() {
     return (
@@ -29,8 +32,40 @@ export default function LoginPage() {
     const [resetEmail, setResetEmail] = useState('');
     const [resetSent, setResetSent] = useState(false);
     const [resetLoading, setResetLoading] = useState(false);
+    const [biometricAvailable, setBiometricAvailable] = useState(false);
+    const [biometricLoading, setBiometricLoading] = useState(false);
 
     const isAr = lang === 'ar';
+
+    // Check if biometric credentials are saved on this device
+    useEffect(() => {
+        if (supportsCredentials() && localStorage.getItem(BIOMETRIC_KEY) === 'true') {
+            setBiometricAvailable(true);
+            // Auto-attempt silent biometric login on page load
+            handleBiometricLogin(true);
+        }
+    }, []);
+
+    const handleBiometricLogin = async (silent = false) => {
+        if (!supportsCredentials()) return;
+        setBiometricLoading(true);
+        setLocalError('');
+        try {
+            const cred = await navigator.credentials.get({
+                password: true,
+                mediation: silent ? 'silent' : 'required',
+            });
+            if (cred && cred.id && cred.password) {
+                await login(cred.id, cred.password);
+            } else if (!silent) {
+                setLocalError(isAr ? 'لم يتم العثور على بيانات محفوظة' : 'No saved credentials found on this device');
+            }
+        } catch (err) {
+            if (!silent) setLocalError(isAr ? 'فشل التحقق البيومتري' : 'Biometric verification failed');
+        } finally {
+            setBiometricLoading(false);
+        }
+    };
 
     const labels = {
         title: isAr ? 'تسجيل الدخول' : 'Sign In',
@@ -55,6 +90,14 @@ export default function LoginPage() {
         setSubmitting(true);
         try {
             await login(email.trim(), password);
+            // Save credentials for biometric login on future visits
+            if (supportsCredentials()) {
+                try {
+                    const cred = new PasswordCredential({ id: email.trim(), password });
+                    await navigator.credentials.store(cred);
+                    localStorage.setItem(BIOMETRIC_KEY, 'true');
+                } catch {}
+            }
         } catch (err) {
             setLocalError(err.message);
         } finally {
@@ -262,6 +305,41 @@ export default function LoginPage() {
                         {submitting ? labels.submitting : labels.submit}
                     </button>
                 </form>
+
+                {/* Biometric Login Button */}
+                {biometricAvailable && (
+                    <>
+                        <div style={{
+                            display: 'flex', alignItems: 'center', gap: 12,
+                            margin: '16px 0 12px', color: 'var(--text-dim)', fontSize: '0.78rem',
+                        }}>
+                            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+                            {isAr ? 'أو' : 'or'}
+                            <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => handleBiometricLogin(false)}
+                            disabled={biometricLoading || submitting || googleLoading || loading}
+                            style={{
+                                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                gap: 10, padding: '11px', borderRadius: 10,
+                                background: 'var(--surface2)', border: '1px solid var(--border)',
+                                color: 'var(--text)', fontSize: '0.9rem', fontWeight: 600,
+                                cursor: biometricLoading ? 'not-allowed' : 'pointer',
+                                fontFamily: 'inherit', transition: 'all 0.2s',
+                                opacity: biometricLoading ? 0.7 : 1,
+                            }}
+                            onMouseOver={e => { if (!biometricLoading) e.currentTarget.style.borderColor = 'var(--primary)'; }}
+                            onMouseOut={e => e.currentTarget.style.borderColor = 'var(--border)'}
+                        >
+                            <Fingerprint size={18} color="var(--primary)" />
+                            {biometricLoading
+                                ? (isAr ? 'جارٍ التحقق...' : 'Verifying...')
+                                : (isAr ? 'الدخول ببصمة الإصبع / الوجه' : 'Sign in with Face ID / Fingerprint')}
+                        </button>
+                    </>
+                )}
 
                 {/* Footer */}
                 <div style={{ textAlign: 'center', marginTop: 24, fontSize: '0.72rem', color: 'var(--text-dim)', lineHeight: 1.5 }}>
