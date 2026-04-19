@@ -927,6 +927,38 @@ export const deleteKeyResult = async (id) => {
     return wrap(null);
 };
 
+// ─── KPI ──────────────────────────────────────────────────────────────────────
+
+export const getKPIs = async ({ employee_id, month, year } = {}) => {
+    let q = db.from('kpis')
+        .select('*, employees(id, first_name, last_name, employee_number, department)')
+        .order('created_at', { ascending: false });
+    if (employee_id) q = q.eq('employee_id', employee_id);
+    if (month) q = q.eq('month', month);
+    if (year) q = q.eq('year', year);
+    const { data, error } = await q;
+    if (error) throw new Error(error.message);
+    return wrap(data || []);
+};
+
+export const createKPI = async (body) => {
+    const { data, error } = await db.from('kpis').insert([body]).select();
+    if (error) throw new Error(error.message);
+    return wrap(data[0]);
+};
+
+export const updateKPI = async (id, body) => {
+    const { data, error } = await db.from('kpis').update(body).eq('id', id).select();
+    if (error) throw new Error(error.message);
+    return wrap(data[0]);
+};
+
+export const deleteKPI = async (id) => {
+    const { error } = await db.from('kpis').delete().eq('id', id);
+    if (error) throw new Error(error.message);
+    return wrap(null);
+};
+
 // ─── ONBOARDING ───────────────────────────────────────────────────────────────
 
 export const getOnboardingTasks = async (employee_id) => {
