@@ -563,7 +563,7 @@ GRANT ALL ON TABLE kpis TO anon, authenticated;`}</pre>
                                 const prog = kpiProgress(kpi);
                                 const meta = STATUS_META[kpi.status] || STATUS_META.on_track;
                                 const progColor = prog >= 75 ? '#10b981' : prog >= 40 ? '#f59e0b' : '#ef4444';
-                                const emp = kpi.employees;
+                                const emp = employees.find(e => e.id === kpi.employee_id);
                                 return (
                                     <div key={kpi.id} style={{ background: 'var(--surface)', borderRadius: 16, padding: '14px 16px', border: '1px solid var(--border)', boxShadow: '0 2px 10px rgba(0,0,0,0.1)' }}>
                                         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>

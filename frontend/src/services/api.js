@@ -936,9 +936,7 @@ export const deleteKeyResult = async (id) => {
 // ─── KPI ──────────────────────────────────────────────────────────────────────
 
 export const getKPIs = async ({ employee_id, month, year } = {}) => {
-    let q = db.from('kpis')
-        .select('*, employees(id, first_name, last_name, employee_number, department)')
-        .order('created_at', { ascending: false });
+    let q = db.from('kpis').select('*').order('created_at', { ascending: false });
     if (employee_id) q = q.eq('employee_id', employee_id);
     if (month) q = q.eq('month', month);
     if (year) q = q.eq('year', year);
