@@ -891,7 +891,17 @@ export const getObjectives = async ({ quarter, year } = {}) => {
     let q = db.from('objectives').select('*, key_results(*)').order('created_at', { ascending: false });
     if (quarter) q = q.eq('quarter', quarter);
     if (year) q = q.eq('year', year);
-    const { data, error } = await q;
+    let { data, error } = await q;
+    // key_results table not yet created — fall back to objectives only
+    if (error && error.message && error.message.includes('key_results')) {
+        let q2 = db.from('objectives').select('*').order('created_at', { ascending: false });
+        if (quarter) q2 = q2.eq('quarter', quarter);
+        if (year) q2 = q2.eq('year', year);
+        const res2 = await q2;
+        if (res2.error) throw new Error(res2.error.message);
+        data = (res2.data || []).map(o => ({ ...o, key_results: [] }));
+        error = null;
+    }
     if (error) throw new Error(error.message);
     return wrap(data || []);
 };
