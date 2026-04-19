@@ -888,22 +888,18 @@ export const calculateEOSB = (employee) => {
 // ─── OKR ──────────────────────────────────────────────────────────────────────
 
 export const getObjectives = async ({ quarter, year } = {}) => {
-    let q = db.from('objectives').select('*, key_results(*)').order('created_at', { ascending: false });
+    // Fetch objectives and key_results separately to avoid schema cache issues
+    let q = db.from('objectives').select('*').order('created_at', { ascending: false });
     if (quarter) q = q.eq('quarter', quarter);
     if (year) q = q.eq('year', year);
-    let { data, error } = await q;
-    // key_results table not yet created — fall back to objectives only
-    if (error && error.message && error.message.includes('key_results')) {
-        let q2 = db.from('objectives').select('*').order('created_at', { ascending: false });
-        if (quarter) q2 = q2.eq('quarter', quarter);
-        if (year) q2 = q2.eq('year', year);
-        const res2 = await q2;
-        if (res2.error) throw new Error(res2.error.message);
-        data = (res2.data || []).map(o => ({ ...o, key_results: [] }));
-        error = null;
-    }
+    const { data: objs, error } = await q;
     if (error) throw new Error(error.message);
-    return wrap(data || []);
+    if (!objs || objs.length === 0) return wrap([]);
+    const ids = objs.map(o => o.id);
+    const { data: krs } = await db.from('key_results').select('*').in('objective_id', ids);
+    const krMap = {};
+    (krs || []).forEach(kr => { (krMap[kr.objective_id] = krMap[kr.objective_id] || []).push(kr); });
+    return wrap(objs.map(o => ({ ...o, key_results: krMap[o.id] || [] })));
 };
 
 export const createObjective = async (body) => {
