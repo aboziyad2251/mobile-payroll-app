@@ -14,8 +14,10 @@ const LEAVE_TYPES = {
     foundation_day: { en: 'Foundation Day',  ar: 'يوم التأسيس',        color: '#8b5cf6', bg: 'rgba(139,92,246,0.15)' },
     eid_fitr:       { en: 'Eid Al-Fitr',     ar: 'عيد الفطر',          color: '#f59e0b', bg: 'rgba(245,158,11,0.15)' },
     eid_adha:       { en: 'Eid Al-Adha',     ar: 'عيد الأضحى',         color: '#d97706', bg: 'rgba(217,119,6,0.15)'  },
-    sick:           { en: 'Sick Leave',      ar: 'إجازة مرضية',        color: '#ef4444', bg: 'rgba(239,68,68,0.15)' },
-    unpaid:         { en: 'Unpaid Leave',    ar: 'إجازة بدون راتب',    color: '#64748b', bg: 'rgba(100,116,139,0.15)' },
+    sick:           { en: 'Sick Leave',       ar: 'إجازة مرضية',        color: '#ef4444', bg: 'rgba(239,68,68,0.15)' },
+    unpaid:         { en: 'Unpaid Leave',     ar: 'إجازة بدون راتب',    color: '#64748b', bg: 'rgba(100,116,139,0.15)' },
+    death:          { en: 'Death Leave',      ar: 'إجازة وفاة',          color: '#475569', bg: 'rgba(71,85,105,0.15)'  },
+    business_trip:  { en: 'Business Trip',    ar: 'مأمورية عمل',         color: '#0891b2', bg: 'rgba(8,145,178,0.15)'  },
 };
 
 const STATUS_META = {
