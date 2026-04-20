@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { CalendarRange, ChevronLeft, ChevronRight, Edit2, X, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getScheduleEmployees, updateEmployeeDaysOff, getLeaveRequests } from '../services/api';
+import client from '../lib/insforge';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -71,7 +72,7 @@ const deptColor = (dept) => {
 };
 
 export default function Schedule() {
-    const { role, subordinateIds } = useAuth();
+    const { role, subordinateIds, user, fullName } = useAuth();
     const { lang } = useLanguage();
     const isAr = lang === 'ar';
     const t = (en, ar) => isAr ? ar : en;
@@ -102,8 +103,10 @@ export default function Schedule() {
 
     const loadLeaves = async () => {
         try {
-            const r = await getLeaveRequests({ status: 'approved' });
-            setLeaves(r.data || []);
+            const { data: raw } = await client.from('leave_requests')
+                .select('id, employee_id, requester_user_id, requester_role, leave_type, start_date, end_date, days_count, status')
+                .eq('status', 'approved');
+            setLeaves(raw || []);
         } catch {}
     };
 
@@ -133,16 +136,22 @@ export default function Schedule() {
         finally { setSaving(false); }
     };
 
-    // Get approved leave for a specific employee on a specific date
+    // Get approved leave for an employee or CEO on a specific date
     const getLeaveOnDate = (emp, date) => {
         const dateStr = toDateStr(date);
-        return leaves.find(l =>
-            l.employee_id === emp.id &&
-            l.status === 'approved' &&
-            dateStr >= l.start_date &&
-            dateStr <= l.end_date
-        );
+        return leaves.find(l => {
+            if (!l.start_date || !l.end_date) return false;
+            if (!(dateStr >= l.start_date && dateStr <= l.end_date)) return false;
+            if (emp.__isCEO) return l.requester_role === 'admin' && !l.employee_id;
+            return String(l.employee_id) === String(emp.id);
+        });
     };
+
+    // Build CEO virtual row if admin has leaves without employee_id
+    const ceoLeaves = leaves.filter(l => l.requester_role === 'admin' && !l.employee_id);
+    const ceoRow = role === 'admin' && ceoLeaves.length > 0
+        ? { __isCEO: true, id: '__ceo__', first_name: fullName || 'CEO', last_name: '', department: 'Management', days_off_count: 2, day_off_1: 'friday', day_off_2: 'saturday' }
+        : null;
 
     const totalWork = (emp) => days.filter(d => !isDayOff(emp, d) && !getLeaveOnDate(emp, d)).length;
     const totalOff = (emp) => days.filter(d => isDayOff(emp, d)).length;
@@ -236,7 +245,7 @@ export default function Schedule() {
                             </tr>
                         </thead>
                         <tbody>
-                            {employees.map((emp) => {
+                            {[...(ceoRow ? [ceoRow] : []), ...employees].map((emp) => {
                                 const dc = deptColor(emp.department);
                                 return (
                                     <tr key={emp.id} style={{ borderBottom: '1px solid var(--border)' }}>
