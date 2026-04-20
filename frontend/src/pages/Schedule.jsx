@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { CalendarRange, ChevronLeft, ChevronRight, Edit2, X, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { getScheduleEmployees, updateEmployeeDaysOff, getLeaveRequests } from '../services/api';
-import client from '../lib/insforge';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -103,18 +102,8 @@ export default function Schedule() {
 
     const loadLeaves = async () => {
         try {
-            const { data: raw, error } = await client.from('leave_requests')
-                .select('id, employee_id, requester_user_id, requester_role, leave_type, start_date, end_date, days_count, status')
-                .eq('status', 'approved');
-            if (error) {
-                // requester_user_id column may not exist yet — fallback without it
-                const { data: raw2 } = await client.from('leave_requests')
-                    .select('id, employee_id, requester_role, leave_type, start_date, end_date, days_count, status')
-                    .eq('status', 'approved');
-                setLeaves(raw2 || []);
-            } else {
-                setLeaves(raw || []);
-            }
+            const r = await getLeaveRequests({ status: 'approved' });
+            setLeaves(r.data || []);
         } catch {}
     };
 
