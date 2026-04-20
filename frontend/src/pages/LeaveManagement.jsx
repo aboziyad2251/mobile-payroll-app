@@ -93,7 +93,7 @@ export default function LeaveManagement() {
 
     const handleSubmitMyLeave = async (e) => {
         e.preventDefault();
-        if (!employeeId) return toast.error(t('Link your employee record in Users page first', 'ربط سجل الموظف أولاً من صفحة المستخدمين'));
+        if (!employeeId && !isCEO) return toast.error(t('Link your employee record in Users page first', 'ربط سجل الموظف أولاً من صفحة المستخدمين'));
         if (!reqForm.start_date || !reqForm.end_date) return toast.error(t('Select start and end dates', 'حدد تاريخ البداية والنهاية'));
         setSubmitting(true);
         try {
