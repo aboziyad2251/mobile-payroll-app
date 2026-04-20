@@ -19,14 +19,15 @@ export const padPassword = (pwd) =>
  * as admin and in as the new user. We bypass that by using raw fetch.
  */
 export const adminCreateAuthUser = async (email, password) => {
+    const session = await client.auth.getSession();
+    const token = session?.data?.session?.access_token || ANON_KEY;
     const res = await fetch(`${BASE_URL}/api/auth/users`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${ANON_KEY}`,
+            'Authorization': `Bearer ${token}`,
         },
         body: JSON.stringify({ email, password: padPassword(password) }),
-        credentials: 'include',
     });
     if (res.status === 409) {
         // Auth account already exists — that's fine, just proceed to upsert the profile
