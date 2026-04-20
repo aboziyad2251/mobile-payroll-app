@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { CalendarRange, ChevronLeft, ChevronRight, Edit2, X, Check } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { getScheduleEmployees, updateEmployeeDaysOff } from '../services/api';
+import { getScheduleEmployees, updateEmployeeDaysOff, getLeaveRequests } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -25,10 +25,23 @@ const WEEKDAYS_FULL = [
     { value: 'saturday',  en: 'Saturday',  ar: 'السبت' },
 ];
 
-// Returns the weekday name ('sunday', 'monday', ...) for a Date object
+const LEAVE_TYPES = {
+    annual:         { en: 'Annual',       ar: 'سنوية',      color: '#4f46e5', bg: 'rgba(79,70,229,0.25)' },
+    emergency:      { en: 'Emergency',    ar: 'طارئة',       color: '#ef4444', bg: 'rgba(239,68,68,0.25)' },
+    sick:           { en: 'Sick',         ar: 'مرضية',       color: '#f43f5e', bg: 'rgba(244,63,94,0.25)' },
+    exam:           { en: 'Exam',         ar: 'امتحانات',    color: '#0ea5e9', bg: 'rgba(14,165,233,0.25)' },
+    sport:          { en: 'Sport',        ar: 'رياضية',      color: '#10b981', bg: 'rgba(16,185,129,0.25)' },
+    national_day:   { en: 'National Day', ar: 'وطني',        color: '#6366f1', bg: 'rgba(99,102,241,0.25)' },
+    foundation_day: { en: 'Foundation',   ar: 'تأسيس',       color: '#8b5cf6', bg: 'rgba(139,92,246,0.25)' },
+    eid_fitr:       { en: 'Eid Fitr',     ar: 'الفطر',       color: '#f59e0b', bg: 'rgba(245,158,11,0.25)' },
+    eid_adha:       { en: 'Eid Adha',     ar: 'الأضحى',      color: '#d97706', bg: 'rgba(217,119,6,0.25)'  },
+    unpaid:         { en: 'Unpaid',       ar: 'بدون راتب',   color: '#64748b', bg: 'rgba(100,116,139,0.25)' },
+    death:          { en: 'Death',        ar: 'وفاة',         color: '#475569', bg: 'rgba(71,85,105,0.25)'  },
+    business_trip:  { en: 'Business Trip',ar: 'مأمورية',     color: '#0891b2', bg: 'rgba(8,145,178,0.25)'  },
+};
+
 const getDayName = (date) => WEEKDAYS_FULL[date.getDay()].value;
 
-// Get all days in a month as Date objects
 const getDaysInMonth = (year, month) => {
     const days = [];
     const d = new Date(year, month - 1, 1);
@@ -39,8 +52,6 @@ const getDaysInMonth = (year, month) => {
     return days;
 };
 
-// Is a given date a day off for this employee?
-// Uses weekday NAME so it recurs every week automatically.
 const isDayOff = (emp, date) => {
     const name = getDayName(date);
     const count = Number(emp.days_off_count || 2);
@@ -48,6 +59,8 @@ const isDayOff = (emp, date) => {
     if (count >= 2 && emp.day_off_2 && name === emp.day_off_2) return true;
     return false;
 };
+
+const toDateStr = (d) => d.toISOString().split('T')[0];
 
 const DEPT_COLORS = ['#4f46e5', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'];
 let deptColorMap = {};
@@ -58,7 +71,7 @@ const deptColor = (dept) => {
 };
 
 export default function Schedule() {
-    const { role, subordinateIds, user } = useAuth();
+    const { role, subordinateIds } = useAuth();
     const { lang } = useLanguage();
     const isAr = lang === 'ar';
     const t = (en, ar) => isAr ? ar : en;
@@ -69,28 +82,33 @@ export default function Schedule() {
     const [year, setYear] = useState(now.getFullYear());
     const [employees, setEmployees] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [leaves, setLeaves] = useState([]); // approved leaves for the month
 
-    // Edit modal state
     const [editEmp, setEditEmp] = useState(null);
     const [editForm, setEditForm] = useState({ days_off_count: 2, day_off_1: 'friday', day_off_2: 'saturday' });
     const [saving, setSaving] = useState(false);
-
-    // For employee role: only their own row
-    const [selfId, setSelfId] = useState(null);
 
     const load = async () => {
         setLoading(true);
         try {
             let ids = null;
             if (role === 'manager') ids = subordinateIds;
-            else if (role === 'employee') ids = subordinateIds; // subordinateIds = [own employee id] for employee role
+            else if (role === 'employee') ids = subordinateIds;
             const r = await getScheduleEmployees({ ids });
             setEmployees(r.data || []);
         } catch (e) { toast.error(e.message); }
         finally { setLoading(false); }
     };
 
+    const loadLeaves = async () => {
+        try {
+            const r = await getLeaveRequests({ status: 'approved' });
+            setLeaves(r.data || []);
+        } catch {}
+    };
+
     useEffect(() => { load(); }, [subordinateIds]);
+    useEffect(() => { loadLeaves(); }, [month, year]);
 
     const days = getDaysInMonth(year, month);
     const locale = isAr ? 'ar-SA' : 'en-US';
@@ -115,9 +133,23 @@ export default function Schedule() {
         finally { setSaving(false); }
     };
 
-    // Summary stats
-    const totalWork = (emp) => days.filter(d => !isDayOff(emp, d)).length;
+    // Get approved leave for a specific employee on a specific date
+    const getLeaveOnDate = (emp, date) => {
+        const dateStr = toDateStr(date);
+        return leaves.find(l =>
+            l.employee_id === emp.id &&
+            l.status === 'approved' &&
+            dateStr >= l.start_date &&
+            dateStr <= l.end_date
+        );
+    };
+
+    const totalWork = (emp) => days.filter(d => !isDayOff(emp, d) && !getLeaveOnDate(emp, d)).length;
     const totalOff = (emp) => days.filter(d => isDayOff(emp, d)).length;
+    const totalLeave = (emp) => days.filter(d => !isDayOff(emp, d) && getLeaveOnDate(emp, d)).length;
+
+    // Unique leave types used this month for legend
+    const usedLeaveTypes = [...new Set(leaves.map(l => l.leave_type))].filter(Boolean);
 
     return (
         <div dir={isAr ? 'rtl' : 'ltr'}>
@@ -127,9 +159,8 @@ export default function Schedule() {
                         <CalendarRange size={22} style={{ display: 'inline', marginInlineEnd: 8 }} />
                         {t('Work Schedule', 'جدول العمل')}
                     </h1>
-                    <p className="page-subtitle">{t('Monthly schedule overview with days off per employee', 'نظرة شهرية على جدول العمل وأيام الإجازة لكل موظف')}</p>
+                    <p className="page-subtitle">{t('Monthly schedule with approved leaves per employee', 'الجدول الشهري مع الإجازات المعتمدة لكل موظف')}</p>
                 </div>
-                {/* Month navigator */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <button className="btn btn-ghost btn-icon" onClick={prevMonth}><ChevronLeft size={18} /></button>
                     <span style={{ fontWeight: 700, fontSize: '1rem', minWidth: 160, textAlign: 'center' }}>{monthName}</span>
@@ -138,17 +169,27 @@ export default function Schedule() {
             </div>
 
             {/* Legend */}
-            <div style={{ display: 'flex', gap: 16, marginBottom: 16, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 12, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
                 {[
                     { color: '#10b981', bg: 'rgba(16,185,129,0.12)', label: t('Working Day', 'يوم عمل') },
-                    { color: '#ef4444', bg: 'rgba(239,68,68,0.12)', label: t('Day Off', 'يوم إجازة') },
                     { color: '#94a3b8', bg: 'rgba(148,163,184,0.12)', label: t('Weekend', 'عطلة أسبوعية') },
                 ].map(({ color, bg, label }) => (
-                    <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
                         <div style={{ width: 14, height: 14, borderRadius: 3, background: bg, border: `2px solid ${color}` }} />
                         {label}
                     </div>
                 ))}
+                {/* Dynamic leave type legend */}
+                {usedLeaveTypes.map(type => {
+                    const lt = LEAVE_TYPES[type];
+                    if (!lt) return null;
+                    return (
+                        <div key={type} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                            <div style={{ width: 14, height: 14, borderRadius: 3, background: lt.bg, border: `2px solid ${lt.color}` }} />
+                            {isAr ? lt.ar : lt.en}
+                        </div>
+                    );
+                })}
             </div>
 
             {loading ? (
@@ -163,17 +204,18 @@ export default function Schedule() {
                     <table style={{ borderCollapse: 'collapse', minWidth: '100%', fontSize: '0.78rem' }}>
                         <thead>
                             <tr style={{ background: 'var(--surface2)' }}>
-                                {/* Sticky employee column */}
                                 <th style={{ position: 'sticky', left: 0, zIndex: 2, background: 'var(--surface2)', padding: '10px 16px', textAlign: isAr ? 'right' : 'left', whiteSpace: 'nowrap', borderBottom: '2px solid var(--border)', minWidth: 180 }}>
                                     {t('Employee', 'الموظف')}
                                 </th>
-                                <th style={{ padding: '10px 8px', borderBottom: '2px solid var(--border)', whiteSpace: 'nowrap', color: 'var(--text-muted)', fontWeight: 600, minWidth: 56, textAlign: 'center' }}>
+                                <th style={{ padding: '10px 6px', borderBottom: '2px solid var(--border)', whiteSpace: 'nowrap', color: '#10b981', fontWeight: 700, minWidth: 46, textAlign: 'center' }}>
                                     {t('Work', 'عمل')}
                                 </th>
-                                <th style={{ padding: '10px 8px', borderBottom: '2px solid var(--border)', whiteSpace: 'nowrap', color: 'var(--text-muted)', fontWeight: 600, minWidth: 46, textAlign: 'center' }}>
-                                    {t('Off', 'إجازة')}
+                                <th style={{ padding: '10px 6px', borderBottom: '2px solid var(--border)', whiteSpace: 'nowrap', color: '#94a3b8', fontWeight: 700, minWidth: 40, textAlign: 'center' }}>
+                                    {t('Off', 'أجازة')}
                                 </th>
-                                {/* One column per day */}
+                                <th style={{ padding: '10px 6px', borderBottom: '2px solid var(--border)', whiteSpace: 'nowrap', color: '#4f46e5', fontWeight: 700, minWidth: 44, textAlign: 'center' }}>
+                                    {t('Leave', 'إجازة')}
+                                </th>
                                 {days.map(d => {
                                     const dayName = getDayName(d);
                                     const isWeekend = dayName === 'friday' || dayName === 'saturday';
@@ -194,7 +236,7 @@ export default function Schedule() {
                             </tr>
                         </thead>
                         <tbody>
-                            {employees.map((emp, ei) => {
+                            {employees.map((emp) => {
                                 const dc = deptColor(emp.department);
                                 return (
                                     <tr key={emp.id} style={{ borderBottom: '1px solid var(--border)' }}>
@@ -208,38 +250,51 @@ export default function Schedule() {
                                                 </div>
                                             </div>
                                         </td>
-                                        {/* Work days count */}
                                         <td style={{ textAlign: 'center', fontWeight: 700, color: '#10b981', padding: '8px 4px' }}>{totalWork(emp)}</td>
-                                        {/* Off days count */}
-                                        <td style={{ textAlign: 'center', fontWeight: 700, color: '#ef4444', padding: '8px 4px' }}>{totalOff(emp)}</td>
+                                        <td style={{ textAlign: 'center', fontWeight: 700, color: '#94a3b8', padding: '8px 4px' }}>{totalOff(emp)}</td>
+                                        <td style={{ textAlign: 'center', fontWeight: 700, color: '#4f46e5', padding: '8px 4px' }}>{totalLeave(emp)}</td>
                                         {/* Day cells */}
                                         {days.map(d => {
                                             const off = isDayOff(emp, d);
                                             const dayName = getDayName(d);
                                             const isWeekend = dayName === 'friday' || dayName === 'saturday';
+                                            const leave = !off ? getLeaveOnDate(emp, d) : null;
+                                            const lt = leave ? (LEAVE_TYPES[leave.leave_type] || LEAVE_TYPES.annual) : null;
+
+                                            let bg, border, dot;
+                                            if (off) {
+                                                bg = 'rgba(148,163,184,0.12)';
+                                                border = '#94a3b840';
+                                                dot = '#94a3b8';
+                                            } else if (lt) {
+                                                bg = lt.bg;
+                                                border = lt.color + '60';
+                                                dot = lt.color;
+                                            } else {
+                                                bg = 'rgba(16,185,129,0.12)';
+                                                border = '#10b98140';
+                                                dot = '#10b981';
+                                            }
+
                                             return (
                                                 <td key={d.getDate()} style={{
                                                     textAlign: 'center', padding: '6px 2px',
                                                     background: isWeekend ? 'rgba(148,163,184,0.06)' : undefined,
                                                 }}>
-                                                    <div style={{
+                                                    <div title={lt ? (isAr ? lt.ar : lt.en) : undefined} style={{
                                                         width: 24, height: 24, borderRadius: 4, margin: '0 auto',
-                                                        background: off ? 'rgba(239,68,68,0.15)' : 'rgba(16,185,129,0.12)',
-                                                        border: `1px solid ${off ? '#ef444440' : '#10b98140'}`,
+                                                        background: bg, border: `1px solid ${border}`,
                                                         display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                        cursor: lt ? 'help' : 'default',
                                                     }}>
-                                                        <div style={{
-                                                            width: 8, height: 8, borderRadius: '50%',
-                                                            background: off ? '#ef4444' : '#10b981',
-                                                        }} />
+                                                        <div style={{ width: 8, height: 8, borderRadius: '50%', background: dot }} />
                                                     </div>
                                                 </td>
                                             );
                                         })}
-                                        {/* Edit button — admin only */}
                                         {isAdmin && (
                                             <td style={{ textAlign: 'center', padding: '8px 4px' }}>
-                                                <button className="btn btn-ghost btn-icon" style={{ padding: 4 }} onClick={() => openEdit(emp)} title={t('Edit schedule', 'تعديل الجدول')}>
+                                                <button className="btn btn-ghost btn-icon" style={{ padding: 4 }} onClick={() => openEdit(emp)}>
                                                     <Edit2 size={13} />
                                                 </button>
                                             </td>
@@ -252,7 +307,7 @@ export default function Schedule() {
                 </div>
             )}
 
-            {/* Edit Days Off Modal — admin only */}
+            {/* Edit Days Off Modal */}
             {isAdmin && editEmp && (
                 <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setEditEmp(null)}>
                     <div className="modal" style={{ maxWidth: 400 }}>
@@ -263,41 +318,30 @@ export default function Schedule() {
                             </h3>
                             <button className="modal-close" onClick={() => setEditEmp(null)}><X size={18} /></button>
                         </div>
-
                         <div style={{ padding: '16px 0 8px', display: 'flex', flexDirection: 'column', gap: 16 }}>
                             <div className="form-group">
                                 <label className="form-label">{t('Days Off Per Week', 'أيام الإجازة في الأسبوع')}</label>
                                 <select className="form-control" value={editForm.days_off_count} onChange={e => {
                                     const count = Number(e.target.value);
-                                    setEditForm(f => ({
-                                        ...f, days_off_count: count,
-                                        day_off_1: count === 2 ? 'friday' : f.day_off_1,
-                                        day_off_2: count === 2 ? 'saturday' : null,
-                                    }));
+                                    setEditForm(f => ({ ...f, days_off_count: count, day_off_1: count === 2 ? 'friday' : f.day_off_1, day_off_2: count === 2 ? 'saturday' : null }));
                                 }}>
                                     <option value={1}>{t('1 Day Off', 'يوم إجازة واحد')}</option>
                                     <option value={2}>{t('2 Days Off (Fri + Sat)', 'يومان (جمعة + سبت)')}</option>
                                 </select>
                             </div>
-
                             {Number(editForm.days_off_count) === 1 ? (
                                 <div className="form-group">
                                     <label className="form-label">{t('Day Off (repeats every week)', 'يوم الإجازة (يتكرر أسبوعياً)')}</label>
                                     <select className="form-control" value={editForm.day_off_1} onChange={e => setEditForm(f => ({ ...f, day_off_1: e.target.value }))}>
                                         {WEEKDAYS_FULL.map(d => <option key={d.value} value={d.value}>{isAr ? d.ar : d.en}</option>)}
                                     </select>
-                                    <div style={{ fontSize: '0.73rem', color: 'var(--text-muted)', marginTop: 4 }}>
-                                        {t('Every', 'كل')} <strong>{isAr ? WEEKDAYS_FULL.find(d => d.value === editForm.day_off_1)?.ar : WEEKDAYS_FULL.find(d => d.value === editForm.day_off_1)?.en}</strong> {t('will be marked as day off', 'سيُحدد كيوم إجازة')}
-                                    </div>
                                 </div>
                             ) : (
                                 <div className="form-group">
-                                    <label className="form-label">{t('Days Off (repeats every week)', 'أيام الإجازة (تتكرر أسبوعياً)')}</label>
+                                    <label className="form-label">{t('Days Off', 'أيام الإجازة')}</label>
                                     <input className="form-control" value={t('Friday & Saturday', 'الجمعة والسبت')} disabled style={{ color: 'var(--text-muted)' }} />
                                 </div>
                             )}
-
-                            {/* Preview */}
                             <div style={{ background: 'var(--surface2)', borderRadius: 8, padding: '12px 16px' }}>
                                 <div style={{ fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 8 }}>{t('Preview', 'معاينة')}</div>
                                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
@@ -318,7 +362,6 @@ export default function Schedule() {
                                 </div>
                             </div>
                         </div>
-
                         <div className="modal-footer">
                             <button className="btn btn-secondary" onClick={() => setEditEmp(null)}>{t('Cancel', 'إلغاء')}</button>
                             <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
