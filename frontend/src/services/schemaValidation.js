@@ -24,7 +24,7 @@ export const employeeSchema = z.object({
 });
 
 export const leaveRequestSchema = z.object({
-  employee_id: z.number(),
+  employee_id: z.number().nullable(),
   start_date: z.string().min(1, "Start date is required"),
   end_date: z.string().min(1, "End date is required"),
   type: z.string().min(1, "Leave type is required"),
