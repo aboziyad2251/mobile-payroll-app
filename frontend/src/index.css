@@ -1,7 +1,18 @@
 /* ============================
    PAYROLLPRO — DESIGN SYSTEM
    ============================ */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+/* Fonts loaded via index.html preconnect for better performance */
+
+/* ── Font variables ── */
+:root {
+  --font-heading: 'Outfit', 'Plus Jakarta Sans', sans-serif;
+  --font-body:    'Inter', sans-serif;
+  --font-mono:    'Geist Mono', 'Fira Code', monospace;
+}
+[dir="rtl"] {
+  --font-heading: 'Cairo', sans-serif;
+  --font-body:    'Tajawal', sans-serif;
+}
 
 :root {
   --primary:       #5c4dff;
@@ -36,7 +47,7 @@
 html { scroll-behavior: smooth; }
 
 body {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-body);
   background: var(--bg);
   color: var(--text);
   line-height: 1.6;
@@ -248,14 +259,14 @@ tbody tr:last-child { border-bottom: none; }
 }
 .modal-lg { max-width: 780px; }
 .modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
-.modal-title { font-size: 1.1rem; font-weight: 700; }
+.modal-title { font-size: 1.1rem; font-weight: 700; font-family: var(--font-heading); }
 .modal-close { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; border-radius: 6px; transition: var(--transition); }
 .modal-close:hover { background: var(--surface2); color: var(--text); }
 .modal-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border); }
 
 /* ---- PAGE HEADER ---- */
 .page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; gap: 16px; flex-wrap: wrap; }
-.page-title { font-size: 1.5rem; font-weight: 800; }
+.page-title { font-size: 1.5rem; font-weight: 800; font-family: var(--font-heading); }
 .page-title span { color: var(--primary-light); }
 .page-subtitle { color: var(--text-muted); font-size: 0.85rem; margin-top: 2px; }
 
@@ -396,8 +407,13 @@ tbody tr:last-child { border-bottom: none; }
    ============================== */
 
 [dir="rtl"] body {
-  font-family: 'Cairo', 'Inter', sans-serif;
+  font-family: var(--font-body);
   direction: rtl;
+}
+[dir="rtl"] .page-title,
+[dir="rtl"] .modal-title,
+[dir="rtl"] .esshub-hero-value {
+  font-family: var(--font-heading);
 }
 
 /* Sidebar flips to right side in RTL */
@@ -507,7 +523,7 @@ tbody tr:last-child { border-bottom: none; }
 }
 .esshub-hero-value {
   font-size: 1.5rem; font-weight: 800; color: #fff;
-  line-height: 1; margin-bottom: 2px;
+  line-height: 1; margin-bottom: 2px; font-family: var(--font-heading);
 }
 .esshub-hero-unit { font-size: 0.85rem; font-weight: 600; }
 .esshub-hero-date {
