@@ -4,6 +4,8 @@
  */
 import client from '../lib/insforge';
 import { generatePayslipPDF as _genPayslipPDF, generateWarningPDF as _genWarningPDF } from '../lib/pdfGenerator';
+import { employeeSchema, attendanceSchema, warningSchema, leaveRequestSchema, validateSchema } from './schemaValidation';
+import { queueOfflineAction } from './offlineSync';
 
 const db = client.database;
 
@@ -38,33 +40,34 @@ export const getEmployee = async (id) => {
 };
 
 export const createEmployee = async (body) => {
+    const validBody = validateSchema(employeeSchema, body);
     const { data, error } = await db.from('employees').insert([{
-        employee_number: body.employee_number,
-        first_name: body.first_name,
-        last_name: body.last_name,
-        email: body.email || null,
-        phone: body.phone || null,
-        position: body.position,
-        job_title: body.job_title || null,
-        department: body.department,
-        hire_date: body.hire_date,
-        salary_type: body.salary_type || 'monthly',
-        base_salary: Number(body.base_salary) || 0,
-        housing_allowance: Number(body.housing_allowance) || 0,
-        transport_allowance: Number(body.transport_allowance) || 0,
-        other_allowance: Number(body.other_allowance) || 0,
-        annual_incentive_multiplier: Number(body.annual_incentive_multiplier) || 0,
-        status: body.status || 'active',
-        shift_type: body.shift_type || 'first',
-        shift_start: body.shift_type === 'first' ? '09:00' : body.shift_type === 'second' ? '16:00' : (body.shift_start || '09:00'),
-        shift_end: body.shift_type === 'first' ? '16:00' : body.shift_type === 'second' ? '00:00' : (body.shift_end || '17:00'),
-        days_off_count: Number(body.days_off_count) || 2,
-        day_off_1: body.day_off_1 || 'friday',
-        day_off_2: Number(body.days_off_count) === 1 ? null : (body.day_off_2 || 'saturday'),
-        national_id: body.national_id || null,
-        iban: body.iban || null,
-        bank_code: body.bank_code || null,
-        bank_name: body.bank_name || null,
+        employee_number: validBody.employee_number,
+        first_name: validBody.first_name,
+        last_name: validBody.last_name,
+        email: validBody.email || null,
+        phone: validBody.phone || null,
+        position: validBody.position,
+        job_title: validBody.job_title || null,
+        department: validBody.department,
+        hire_date: validBody.hire_date,
+        salary_type: validBody.salary_type || 'monthly',
+        base_salary: Number(validBody.base_salary) || 0,
+        housing_allowance: Number(validBody.housing_allowance) || 0,
+        transport_allowance: Number(validBody.transport_allowance) || 0,
+        other_allowance: Number(validBody.other_allowance) || 0,
+        annual_incentive_multiplier: Number(validBody.annual_incentive_multiplier) || 0,
+        status: validBody.status || 'active',
+        shift_type: validBody.shift_type || 'first',
+        shift_start: validBody.shift_type === 'first' ? '09:00' : validBody.shift_type === 'second' ? '16:00' : (validBody.shift_start || '09:00'),
+        shift_end: validBody.shift_type === 'first' ? '16:00' : validBody.shift_type === 'second' ? '00:00' : (validBody.shift_end || '17:00'),
+        days_off_count: Number(validBody.days_off_count) || 2,
+        day_off_1: validBody.day_off_1 || 'friday',
+        day_off_2: Number(validBody.days_off_count) === 1 ? null : (validBody.day_off_2 || 'saturday'),
+        national_id: validBody.national_id || null,
+        iban: validBody.iban || null,
+        bank_code: validBody.bank_code || null,
+        bank_name: validBody.bank_name || null,
     }]).select();
     if (error) throw new Error(error.message);
     // Create initial leave balance
@@ -76,33 +79,34 @@ export const createEmployee = async (body) => {
 };
 
 export const updateEmployee = async (id, body) => {
+    const validBody = validateSchema(employeeSchema, body);
     const { data, error } = await db.from('employees').update({
-        employee_number: body.employee_number,
-        first_name: body.first_name,
-        last_name: body.last_name,
-        email: body.email || null,
-        phone: body.phone || null,
-        position: body.position,
-        job_title: body.job_title || null,
-        department: body.department,
-        hire_date: body.hire_date,
-        salary_type: body.salary_type || 'monthly',
-        base_salary: Number(body.base_salary) || 0,
-        housing_allowance: Number(body.housing_allowance) || 0,
-        transport_allowance: Number(body.transport_allowance) || 0,
-        other_allowance: Number(body.other_allowance) || 0,
-        annual_incentive_multiplier: Number(body.annual_incentive_multiplier) || 0,
-        status: body.status || 'active',
-        shift_type: body.shift_type || 'first',
-        shift_start: body.shift_type === 'first' ? '09:00' : body.shift_type === 'second' ? '16:00' : (body.shift_start || '09:00'),
-        shift_end: body.shift_type === 'first' ? '16:00' : body.shift_type === 'second' ? '00:00' : (body.shift_end || '17:00'),
-        days_off_count: Number(body.days_off_count) || 2,
-        day_off_1: body.day_off_1 || 'friday',
-        day_off_2: Number(body.days_off_count) === 1 ? null : (body.day_off_2 || 'saturday'),
-        national_id: body.national_id || null,
-        iban: body.iban || null,
-        bank_code: body.bank_code || null,
-        bank_name: body.bank_name || null,
+        employee_number: validBody.employee_number,
+        first_name: validBody.first_name,
+        last_name: validBody.last_name,
+        email: validBody.email || null,
+        phone: validBody.phone || null,
+        position: validBody.position,
+        job_title: validBody.job_title || null,
+        department: validBody.department,
+        hire_date: validBody.hire_date,
+        salary_type: validBody.salary_type || 'monthly',
+        base_salary: Number(validBody.base_salary) || 0,
+        housing_allowance: Number(validBody.housing_allowance) || 0,
+        transport_allowance: Number(validBody.transport_allowance) || 0,
+        other_allowance: Number(validBody.other_allowance) || 0,
+        annual_incentive_multiplier: Number(validBody.annual_incentive_multiplier) || 0,
+        status: validBody.status || 'active',
+        shift_type: validBody.shift_type || 'first',
+        shift_start: validBody.shift_type === 'first' ? '09:00' : validBody.shift_type === 'second' ? '16:00' : (validBody.shift_start || '09:00'),
+        shift_end: validBody.shift_type === 'first' ? '16:00' : validBody.shift_type === 'second' ? '00:00' : (validBody.shift_end || '17:00'),
+        days_off_count: Number(validBody.days_off_count) || 2,
+        day_off_1: validBody.day_off_1 || 'friday',
+        day_off_2: Number(validBody.days_off_count) === 1 ? null : (validBody.day_off_2 || 'saturday'),
+        national_id: validBody.national_id || null,
+        iban: validBody.iban || null,
+        bank_code: validBody.bank_code || null,
+        bank_name: validBody.bank_name || null,
     }).eq('id', id).select();
     if (error) throw new Error(error.message);
     return wrap(data[0]);
@@ -164,8 +168,24 @@ export const getTodayAttendance = async () => {
     });
 };
 
-export const markAttendance = async (body) => {
-    const { employee_id, date, status, check_in, check_out, break_start, break_end, notes } = body;
+export const markAttendance = async (body, isBackgroundSync = false) => {
+    const validBody = validateSchema(attendanceSchema, {
+        employee_id: body.employee_id,
+        date: body.date,
+        check_in: body.check_in,
+        check_out: body.check_out,
+        status: body.status
+    });
+    
+    // Merge validBody core with potentially unvalidated optional fields
+    const { employee_id, date, status, check_in, check_out } = validBody;
+    const { break_start, break_end, notes } = body;
+
+    // Trigger Offline Sync if applicable
+    if (!navigator.onLine && !isBackgroundSync) {
+        await queueOfflineAction('markAttendance', body);
+        return wrap({ ...validBody, id: 'offline-pending' });
+    }
 
     // Calculate break and overtime minutes
     let total_break_minutes = 0;
@@ -253,16 +273,17 @@ export const getNextWarningType = async (employeeId) => {
 };
 
 export const createWarning = async (body) => {
-    const { data: prev } = await db.from('warnings').select('id').eq('employee_id', body.employee_id).neq('warning_type', 'recognition');
+    const validBody = validateSchema(warningSchema, body);
+    const { data: prev } = await db.from('warnings').select('id').eq('employee_id', validBody.employee_id).neq('warning_type', 'recognition');
     const warning_number = ((prev || []).length) + 1;
     const { data, error } = await db.from('warnings').insert([{
-        employee_id: body.employee_id,
+        employee_id: validBody.employee_id,
         warning_number,
-        warning_type: body.warning_type,
-        reason: body.reason,
-        details: body.details || null,
-        issued_by: body.issued_by || 'HR Manager',
-        issued_date: body.issued_date || new Date().toISOString().split('T')[0],
+        warning_type: validBody.warning_type,
+        reason: validBody.reason,
+        details: validBody.details || null,
+        issued_by: validBody.issued_by || 'HR Manager',
+        issued_date: validBody.issued_date || new Date().toISOString().split('T')[0],
     }]).select();
     if (error) throw new Error(error.message);
     return wrap(data[0]);
@@ -686,19 +707,26 @@ export const getLeaveRequests = async ({ status, employee_id, employeeIds } = {}
 };
 
 export const submitLeaveRequest = async (body) => {
+    const validBody = validateSchema(leaveRequestSchema, {
+        employee_id: body.employee_id,
+        start_date: body.start_date,
+        end_date: body.end_date,
+        type: body.leave_type,
+        reason: body.reason
+    });
     const autoRejectAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
     const requesterRole = body.requester_role || 'employee';
     // CEO leaves are auto-approved; everyone else starts as pending
     const initialStatus = requesterRole === 'admin' ? 'approved' : 'pending';
     const { data: { user: authUser } } = await db.auth.getUser();
     const { data, error } = await db.from('leave_requests').insert([{
-        employee_id: body.employee_id || null,
+        employee_id: validBody.employee_id || null,
         requester_user_id: authUser?.id || null,
-        leave_type: body.leave_type,
-        start_date: body.start_date,
-        end_date: body.end_date,
+        leave_type: validBody.type,
+        start_date: validBody.start_date,
+        end_date: validBody.end_date,
         days_count: body.days_count || 1,
-        reason: body.reason,
+        reason: validBody.reason,
         status: initialStatus,
         auto_reject_at: initialStatus === 'approved' ? null : autoRejectAt,
         requester_role: requesterRole,

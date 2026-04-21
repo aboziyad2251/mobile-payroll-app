@@ -61,7 +61,7 @@ export default function LeaveManagement() {
     const load = async () => {
         setLoading(true);
         try {
-            await autoRejectOldLeaves().catch(() => {});
+            await autoRejectOldLeaves().catch(e => console.error('Auto-reject failed:', e));
             // If CEO or delegated manager: see all. Otherwise filter by subordinates.
             const filter = canApproveAll ? {} : (subordinateIds ? { employeeIds: subordinateIds } : {});
             const r = await getLeaveRequests({ ...(filterStatus ? { status: filterStatus } : {}), ...filter });

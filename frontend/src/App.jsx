@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom';
+import { Routes, Route, NavLink, useLocation } from 'react-router-dom';
+import { AnimatePresence } from 'framer-motion';
+import PageTransition from './components/PageTransition';
 import { Toaster } from 'react-hot-toast';
 import {
     LayoutDashboard, Users, Clock, AlertTriangle,
@@ -8,7 +10,10 @@ import {
     Bell, CheckCheck, CalendarCheck, CalendarX,
     Search, LayoutGrid, ShoppingCart, Fingerprint
 } from 'lucide-react';
-import { getNotifications, markNotificationRead, markAllNotificationsRead, getSettings } from './services/api';
+import { useAppStore } from './store/useAppStore';
+import { syncOfflineQueue } from './services/offlineSync';
+import * as api from './services/api';
+import client from './lib/insforge';
 
 import Dashboard from './pages/Dashboard';
 import Employees from './pages/Employees';
@@ -56,34 +61,32 @@ function Sidebar({ open, onClose }) {
     const { t, toggleLang, lang } = useLanguage();
     const { theme, setTheme, themes } = useTheme();
     const { role, fullName, logout, appUserId } = useAuth();
-    const [notifs, setNotifs] = useState([]);
-    const [showNotifs, setShowNotifs] = useState(false);
+    const { notifs = [], showNotifs, setShowNotifs, markAllRead, markRead, loadNotifications } = useAppStore();
     const notifRef = useRef(null);
-    const unreadCount = notifs.filter(n => !n.is_read).length;
+    const unreadCount = Array.isArray(notifs) ? notifs.filter(n => !n.is_read).length : 0;
 
     useEffect(() => {
         if (!appUserId || role === 'employee') return;
-        const load = () => getNotifications(appUserId).then(r => setNotifs(r.data || [])).catch(() => {});
-        load();
-        const timer = setInterval(load, 60000);
+        loadNotifications(appUserId);
+        
+        // Use polling instead of failing realtime channel for stability
+        const timer = setInterval(() => loadNotifications(appUserId), 60000);
         return () => clearInterval(timer);
-    }, [appUserId, role]);
+    }, [appUserId, role, loadNotifications]);
 
     useEffect(() => {
         const handler = (e) => { if (notifRef.current && !notifRef.current.contains(e.target)) setShowNotifs(false); };
         document.addEventListener('mousedown', handler);
         return () => document.removeEventListener('mousedown', handler);
-    }, []);
+    }, [setShowNotifs]);
 
     const handleMarkAllRead = async () => {
-        await markAllNotificationsRead(appUserId).catch(() => {});
-        setNotifs(prev => prev.map(n => ({ ...n, is_read: true })));
+        await markAllRead(appUserId);
     };
 
     const handleNotifClick = async (notif) => {
         if (!notif.is_read) {
-            await markNotificationRead(notif.id).catch(() => {});
-            setNotifs(prev => prev.map(n => n.id === notif.id ? { ...n, is_read: true } : n));
+            await markRead(notif.id);
         }
         setShowNotifs(false);
     };
@@ -425,14 +428,24 @@ function BottomNav() {
 }
 
 export default function App() {
-    const [sidebarOpen, setSidebarOpen] = useState(false);
-    const [companyName, setCompanyName] = useState('');
+    const location = useLocation();
     const { lang } = useLanguage();
     const { user, role, loading, fullName, logout } = useAuth();
+    const { sidebarOpen, setSidebarOpen, companyName, fetchSettings } = useAppStore();
 
     useEffect(() => {
-        getSettings().then(r => setCompanyName(r.data?.company_name || '')).catch(() => {});
-    }, []);
+        fetchSettings();
+
+        const handleOnline = () => syncOfflineQueue(api);
+        window.addEventListener('online', handleOnline);
+        // Initial check on boot
+        if (navigator.onLine) {
+            // small timeout to not block UI render immediately
+            setTimeout(() => syncOfflineQueue(api), 1000);
+        }
+
+        return () => window.removeEventListener('online', handleOnline);
+    }, [fetchSettings]);
 
     // Dynamic toast style based on theme
     const toastStyle = {
@@ -447,7 +460,7 @@ export default function App() {
     if (role === 'employee') return <EmployeePortal />;
 
     return (
-        <BrowserRouter>
+        <>
             <Toaster position="top-right" toastOptions={{ style: toastStyle, duration: 3500 }} />
             <ReloadPrompt />
             <div className="app-layout">
@@ -514,23 +527,25 @@ export default function App() {
                             </div>
                         </div>
                     </div>
-                    <Routes>
-                        <Route path="/" element={<Dashboard />} />
-                        <Route path="/employees" element={<Employees role={role} />} />
-                        <Route path="/attendance" element={<Attendance />} />
-                        <Route path="/leaves" element={<LeaveManagement />} />
-                        <Route path="/warnings" element={<Warnings />} />
-                        <Route path="/performance" element={<Performance />} />
-                        <Route path="/payroll" element={<Payroll />} />
-                        <Route path="/reports" element={<Reports />} />
-                        <Route path="/recruitment" element={<Recruitment />} />
-                        <Route path="/schedule" element={<Schedule />} />
-                        <Route path="/settings" element={<SettingsPage />} />
-                        {role === 'admin' && <Route path="/users" element={<UsersPage />} />}
-                    </Routes>
+                    <AnimatePresence mode="wait">
+                        <Routes location={location} key={location.pathname}>
+                            <Route path="/" element={<PageTransition><Dashboard /></PageTransition>} />
+                            <Route path="/employees" element={<PageTransition><Employees role={role} /></PageTransition>} />
+                            <Route path="/attendance" element={<PageTransition><Attendance /></PageTransition>} />
+                            <Route path="/leaves" element={<PageTransition><LeaveManagement /></PageTransition>} />
+                            <Route path="/warnings" element={<PageTransition><Warnings /></PageTransition>} />
+                            <Route path="/performance" element={<PageTransition><Performance /></PageTransition>} />
+                            <Route path="/payroll" element={<PageTransition><Payroll /></PageTransition>} />
+                            <Route path="/reports" element={<PageTransition><Reports /></PageTransition>} />
+                            <Route path="/recruitment" element={<PageTransition><Recruitment /></PageTransition>} />
+                            <Route path="/schedule" element={<PageTransition><Schedule /></PageTransition>} />
+                            <Route path="/settings" element={<PageTransition><SettingsPage /></PageTransition>} />
+                            {role === 'admin' && <Route path="/users" element={<PageTransition><UsersPage /></PageTransition>} />}
+                        </Routes>
+                    </AnimatePresence>
                     <BottomNav />
                 </main>
             </div>
-        </BrowserRouter>
+        </>
     );
 }

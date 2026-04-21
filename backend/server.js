@@ -10,6 +10,24 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Rate Limiting
+const rateLimit = require('express-rate-limit');
+const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // Limit each IP to 100 requests per `window`
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+app.use('/api', apiLimiter);
+
+// JWT Auth Middleware
+const { expressjwt } = require('express-jwt');
+app.use('/api', expressjwt({
+    secret: process.env.JWT_SECRET || 'payroll_super_secret_key',
+    algorithms: ['HS256'],
+    credentialsRequired: true
+}).unless({ path: ['/api/health', '/api/auth/login'] }));
+
 // Routes
 app.use('/api/employees', require('./routes/employees'));
 app.use('/api/attendance', require('./routes/attendance'));
@@ -38,7 +56,10 @@ app.get('*', (req, res) => {
 // Error handling middleware
 app.use((err, req, res, next) => {
     console.error(err.stack);
-    res.status(500).json({ error: err.message || 'Internal server error' });
+    if (err.name === 'UnauthorizedError') {
+        return res.status(401).json({ error: 'Invalid token or no token provided' });
+    }
+    res.status(500).json({ error: process.env.NODE_ENV === 'production' ? 'Internal server error' : err.message || 'Internal server error' });
 });
 
 app.listen(PORT, () => {

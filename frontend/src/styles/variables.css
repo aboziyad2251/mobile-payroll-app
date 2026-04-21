@@ -1,0 +1,57 @@
+/* ============================
+   PAYROLLPRO — DESIGN SYSTEM
+   ============================ */
+/* Fonts loaded via index.html preconnect for better performance */
+
+/* ── Font variables ── */
+:root {
+  --font-heading: 'Outfit', 'Plus Jakarta Sans', sans-serif;
+  --font-body:    'Inter', sans-serif;
+  --font-mono:    'Geist Mono', 'Fira Code', monospace;
+}
+[dir="rtl"] {
+  --font-heading: 'Cairo', sans-serif;
+  --font-body:    'Tajawal', sans-serif;
+}
+
+:root {
+  --primary:       #5c4dff;
+  --primary-dark:  #4538d6;
+  --primary-light: #8e83ff;
+  --secondary:     #0ea5e9;
+  --success:       #10b981;
+  --warning:       #f59e0b;
+  --danger:        #ef4444;
+  --danger-dark:   #b91c1c;
+  --purple:        #8b5cf6;
+  --bg:            #100524;
+  --bg2:           #170b32;
+  --bg3:           #201146;
+  --surface:       rgba(43, 31, 79, 0.6);
+  --surface2:      rgba(62, 45, 107, 0.7);
+  --border:        rgba(99, 102, 241, 0.2);
+  --border-light:  rgba(99, 102, 241, 0.4);
+  --text:          #ffffff;
+  --text-muted:    #a39fc8;
+  --text-dim:      #7670a6;
+  --radius:        20px;
+  --radius-sm:     12px;
+  --radius-lg:     24px;
+  --shadow:        0 8px 32px rgba(0,0,0,0.4);
+  --shadow-lg:     0 12px 48px rgba(0,0,0,0.6);
+  --transition:    all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+

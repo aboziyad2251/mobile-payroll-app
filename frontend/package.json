@@ -9,15 +9,20 @@
     },
     "dependencies": {
         "@insforge/sdk": "^1.1.5",
-"axios": "^1.6.2",
+        "@passageidentity/passage-elements": "^1.9.0",
+        "axios": "^1.6.2",
         "date-fns": "^2.30.0",
+        "framer-motion": "^12.38.0",
+        "idb": "^8.0.3",
         "jspdf": "^4.2.1",
         "lucide-react": "^0.303.0",
         "react": "^18.2.0",
         "react-dom": "^18.2.0",
         "react-hot-toast": "^2.4.1",
         "react-router-dom": "^6.20.0",
-        "recharts": "^2.10.3"
+        "recharts": "^2.10.3",
+        "zod": "^4.3.6",
+        "zustand": "^5.0.12"
     },
     "devDependencies": {
         "@types/react": "^18.2.0",

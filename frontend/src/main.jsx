@@ -7,13 +7,17 @@ import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
 import DeviceSimulator from './components/DeviceSimulator';
 
+import { BrowserRouter } from 'react-router-dom';
+
 ReactDOM.createRoot(document.getElementById('root')).render(
     <React.StrictMode>
         <ThemeProvider>
             <LanguageProvider>
                 <AuthProvider>
-                    <App />
-                    <DeviceSimulator />
+                    <BrowserRouter>
+                        <App />
+                        <DeviceSimulator />
+                    </BrowserRouter>
                 </AuthProvider>
             </LanguageProvider>
         </ThemeProvider>

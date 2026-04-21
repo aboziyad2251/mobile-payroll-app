@@ -54,8 +54,8 @@ export default function Payroll() {
             .catch(() => { }).finally(() => setLoading(false));
     };
     useEffect(load, [month, year]);
-    useEffect(() => { getEmployees({ status: 'active', ids: subordinateIds }).then(r => setEmployees(r.data || [])).catch(() => {}); }, [subordinateIds]);
-    useEffect(() => { getEstablishment().then(r => { if (r.data) setEstab(e => ({ ...e, ...r.data })); }).catch(() => {}); }, []);
+    useEffect(() => { getEmployees({ status: 'active', ids: subordinateIds }).then(r => setEmployees(r.data || [])).catch(e => console.error('Employees fetch failed:', e)); }, [subordinateIds]);
+    useEffect(() => { getEstablishment().then(r => { if (r.data) setEstab(e => ({ ...e, ...r.data })); }).catch(e => console.error('Establishment fetch failed:', e)); }, []);
 
     const handleSaveEstab = async () => {
         setEstabSaving(true);

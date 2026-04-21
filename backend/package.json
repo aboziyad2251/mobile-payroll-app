@@ -10,9 +10,12 @@
   "dependencies": {
     "better-sqlite3": "^9.4.3",
     "cors": "^2.8.5",
+    "dayjs": "^1.11.10",
     "express": "^4.18.2",
-    "pdfkit": "^0.15.0",
-    "dayjs": "^1.11.10"
+    "express-jwt": "^8.5.1",
+    "express-rate-limit": "^8.3.2",
+    "jsonwebtoken": "^9.0.3",
+    "pdfkit": "^0.15.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.3"

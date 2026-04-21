@@ -78,7 +78,7 @@ export default function Performance() {
     const loadRankings = () => {
         setLoading(true);
         getRankings({ period, month, year, employeeIds: subordinateIds })
-            .then(r => setRankings(r.data || [])).catch(() => {}).finally(() => setLoading(false));
+            .then(r => setRankings(r.data || [])).catch(e => console.error('Rankings fetch failed:', e)).finally(() => setLoading(false));
     };
 
     const loadOKRs = async () => {
@@ -112,7 +112,7 @@ export default function Performance() {
     useEffect(() => {
         if (tab === 'kpi') {
             loadKPIs();
-            if (!employees.length) getEmployees().then(r => setEmployees(r.data || [])).catch(() => {});
+            if (!employees.length) getEmployees().then(r => setEmployees(r.data || [])).catch(e => console.error('Employees fetch failed:', e));
         }
     }, [tab, kpiFilterEmp, kpiMonth, kpiYear]);
 
