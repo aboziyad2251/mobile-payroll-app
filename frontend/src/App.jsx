@@ -97,7 +97,7 @@ function Sidebar({ open, onClose }) {
         return <CalendarDays size={14} color="#6366f1" />;
     };
 
-    const allNav = role === 'admin'
+    const allNav = (role === 'admin' || role === 'CEO')
         ? [...navItems.slice(0, -1), adminNav, navItems[navItems.length - 1]]
         : navItems;
 
@@ -129,9 +129,9 @@ function Sidebar({ open, onClose }) {
                     </div>
                     <div style={{
                         fontSize: '0.65rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
-                        color: role === 'admin' ? '#818cf8' : role === 'manager' ? '#38bdf8' : '#34d399',
+                        color: (role === 'admin' || role === 'CEO') ? '#818cf8' : role === 'manager' ? '#38bdf8' : '#34d399',
                     }}>
-                        {role === 'admin' ? (lang === 'ar' ? 'الرئيس التنفيذي' : 'CEO')
+                        {(role === 'admin' || role === 'CEO') ? (lang === 'ar' ? 'الرئيس التنفيذي' : 'CEO')
                             : role === 'manager' ? (lang === 'ar' ? 'مدير' : 'Manager')
                                 : (lang === 'ar' ? 'موظف' : 'Employee')}
                     </div>
@@ -371,7 +371,7 @@ function BottomNav() {
         { icon: Briefcase, label: isAr ? 'التوظيف' : 'Recruitment', to: '/recruitment' },
         { icon: CalendarRange, label: isAr ? 'الجدول' : 'Schedule', to: '/schedule' },
         { icon: Settings, label: isAr ? 'الإعدادات' : 'Settings', to: '/settings' },
-        ...(role === 'admin' ? [{ icon: ShieldCheck, label: isAr ? 'المستخدمون' : 'Users', to: '/users' }] : []),
+        ...( (role === 'admin' || role === 'CEO') ? [{ icon: ShieldCheck, label: isAr ? 'المستخدمون' : 'Users', to: '/users' }] : []),
     ];
 
     return (
@@ -506,9 +506,9 @@ export default function App() {
                                 <span style={{
                                     fontSize: '0.6rem', fontWeight: 700, textTransform: 'uppercase',
                                     letterSpacing: '0.07em',
-                                    color: role === 'admin' ? '#818cf8' : role === 'manager' ? '#38bdf8' : '#34d399',
+                                    color: (role === 'admin' || role === 'CEO') ? '#818cf8' : role === 'manager' ? '#38bdf8' : '#34d399',
                                 }}>
-                                    {role === 'admin'
+                                    {(role === 'admin' || role === 'CEO')
                                         ? (lang === 'ar' ? 'الرئيس التنفيذي' : 'CEO')
                                         : role === 'manager'
                                             ? (lang === 'ar' ? 'مدير' : 'Manager')
@@ -540,7 +540,7 @@ export default function App() {
                             <Route path="/recruitment" element={<PageTransition><Recruitment /></PageTransition>} />
                             <Route path="/schedule" element={<PageTransition><Schedule /></PageTransition>} />
                             <Route path="/settings" element={<PageTransition><SettingsPage /></PageTransition>} />
-                            {role === 'admin' && <Route path="/users" element={<PageTransition><UsersPage /></PageTransition>} />}
+                            {(role === 'admin' || role === 'CEO') && <Route path="/users" element={<PageTransition><UsersPage /></PageTransition>} />}
                         </Routes>
                     </AnimatePresence>
                     <BottomNav />

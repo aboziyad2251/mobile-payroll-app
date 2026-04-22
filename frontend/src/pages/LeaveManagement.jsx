@@ -54,7 +54,7 @@ export default function LeaveManagement() {
     const [ceoLeavesLoading, setCeoLeavesLoading] = useState(false);
 
     const t = (en, ar) => isAr ? ar : en;
-    const isCEO = role === 'admin';
+    const isCEO = role === 'admin' || role === 'CEO';
     const isManager = role === 'manager';
     const canApproveAll = isCEO || canDo('approve_leaves');
 

@@ -721,8 +721,8 @@ export const submitLeaveRequest = async (body) => {
     const autoRejectAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
     const requesterRole = body.requester_role || 'employee';
     // CEO leaves are auto-approved; everyone else starts as pending
-    const initialStatus = requesterRole === 'admin' ? 'approved' : 'pending';
-    const { data: { user: authUser } } = await db.auth.getUser();
+    const initialStatus = (requesterRole === 'admin' || requesterRole === 'CEO') ? 'approved' : 'pending';
+    const { data: { user: authUser } } = await client.auth.getCurrentUser();
     const { data, error } = await db.from('leave_requests').insert([{
         employee_id: validBody.employee_id || null,
         requester_user_id: authUser?.id || null,

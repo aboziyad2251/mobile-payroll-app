@@ -204,7 +204,7 @@ export default function UsersPage() {
                     </h2>
                     <p className="page-subtitle">{isAr ? 'إدارة الحسابات والصلاحيات والمرؤوسين' : 'Manage accounts, roles and subordinates'}</p>
                 </div>
-                {myRole === 'admin' && (
+                {(myRole === 'admin' || myRole === 'CEO') && (
                     <button className="btn btn-primary" onClick={() => setShowModal(true)}>
                         <UserPlus size={16} /> {isAr ? 'مستخدم جديد' : 'New User'}
                     </button>
@@ -254,7 +254,7 @@ export default function UsersPage() {
                                             </td>
                                             <td style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{u.email}</td>
                                             <td>
-                                                {isSuperAdmin || myRole !== 'admin' ? (
+                                                {isSuperAdmin || (myRole !== 'admin' && myRole !== 'CEO') ? (
                                                     <span style={{ background: rc.bg, color: rc.color, fontWeight: 700, fontSize: '0.78rem', borderRadius: 6, padding: '4px 10px' }}>{rl[u.role]}</span>
                                                 ) : (
                                                     <select value={u.role} onChange={e => handleRoleChange(u.id, e.target.value, u.email)}
@@ -267,17 +267,17 @@ export default function UsersPage() {
                                             <td style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>{u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}</td>
                                             <td>
                                                 <div style={{ display: 'flex', gap: 4 }}>
-                                                    {myRole === 'admin' && (u.role === 'manager' || u.role === 'hr_manager') && (
+                                                    {(myRole === 'admin' || myRole === 'CEO') && (u.role === 'manager' || u.role === 'hr_manager') && (
                                                         <button className="btn btn-ghost btn-sm" title={isAr ? 'إدارة المرؤوسين' : 'Manage Subordinates'} onClick={() => openSubordinates(u)} style={{ color: '#38bdf8' }}>
                                                             <UsersRound size={15} />
                                                         </button>
                                                     )}
-                                                    {myRole === 'admin' && (u.role === 'manager' || u.role === 'hr_manager') && (
+                                                    {(myRole === 'admin' || myRole === 'CEO') && (u.role === 'manager' || u.role === 'hr_manager') && (
                                                         <button className="btn btn-ghost btn-sm" title={isAr ? 'تفويض الصلاحيات' : 'Delegate Permissions'} onClick={() => openDelegation(u)} style={{ color: '#f472b6' }}>
                                                             <Key size={15} />
                                                         </button>
                                                     )}
-                                                    {myRole === 'admin' && !isSuperAdmin && (
+                                                    {(myRole === 'admin' || myRole === 'CEO') && !isSuperAdmin && (
                                                         <button className="btn btn-ghost btn-sm" onClick={() => handleDelete(u.id, u.email)} style={{ color: 'var(--danger)' }}>
                                                             <Trash2 size={15} />
                                                         </button>

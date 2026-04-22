@@ -194,7 +194,7 @@ export function AuthProvider({ children }) {
     // Check if current user can perform a specific action
     // admin and hr_manager always can; managers only if delegated
     const canDo = (perm) =>
-        role === 'admin' || role === 'hr_manager' || delegatedPermissions.includes(perm);
+        role === 'admin' || role === 'CEO' || role === 'hr_manager' || delegatedPermissions.includes(perm);
 
     return (
         <AuthContext.Provider value={{ user, role, employeeId, fullName, loading, authError, subordinateIds, appUserId, delegatedPermissions, canDo, login, loginWithGoogle, logout }}>

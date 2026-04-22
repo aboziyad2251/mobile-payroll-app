@@ -139,14 +139,14 @@ export default function Schedule() {
         return leaves.find(l => {
             if (!l.start_date || !l.end_date) return false;
             if (!(dateStr >= l.start_date && dateStr <= l.end_date)) return false;
-            if (emp.__isCEO) return l.requester_role === 'admin' && !l.employee_id;
+            if (emp.__isCEO) return (l.requester_role === 'admin' || l.requester_role === 'CEO') && !l.employee_id;
             return String(l.employee_id) === String(emp.id);
         });
     };
 
     // Build CEO virtual row if admin has leaves without employee_id
-    const ceoLeaves = leaves.filter(l => l.requester_role === 'admin' && !l.employee_id);
-    const ceoRow = role === 'admin' && ceoLeaves.length > 0
+    const ceoLeaves = leaves.filter(l => (l.requester_role === 'admin' || l.requester_role === 'CEO') && !l.employee_id);
+    const ceoRow = (role === 'admin' || role === 'CEO') && ceoLeaves.length > 0
         ? { __isCEO: true, id: '__ceo__', first_name: fullName || 'CEO', last_name: '', department: 'Management', days_off_count: 2, day_off_1: 'friday', day_off_2: 'saturday' }
         : null;
 
