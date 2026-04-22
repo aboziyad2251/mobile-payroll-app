@@ -1,5 +1,11 @@
 import { z } from 'zod';
 
+// Helper: accepts number, numeric string, empty string, null, undefined → coerces to number (default 0)
+const numField = z.preprocess(
+  (val) => (val === '' || val === null || val === undefined) ? 0 : Number(val),
+  z.number().min(0)
+);
+
 export const employeeSchema = z.object({
   employee_number: z.string().min(1, "Employee number is required"),
   first_name: z.string().min(1, "First name is required"),
@@ -10,12 +16,12 @@ export const employeeSchema = z.object({
   department: z.string().min(1, "Department is required"),
   hire_date: z.string().min(1, "Hire date is required"),
   salary_type: z.enum(['monthly', 'hourly']),
-  base_salary: z.number().min(0).or(z.string().regex(/^\d+(\.\d+)?$/).transform(Number)),
-  housing_allowance: z.number().min(0).or(z.string().regex(/^\d+(\.\d+)?$/).transform(Number)).optional().default(0),
-  transport_allowance: z.number().min(0).or(z.string().regex(/^\d+(\.\d+)?$/).transform(Number)).optional().default(0),
-  other_allowance: z.number().min(0).or(z.string().regex(/^\d+(\.\d+)?$/).transform(Number)).optional().default(0),
-  annual_incentive_multiplier: z.number().min(0).or(z.string().regex(/^\d+(\.\d+)?$/).transform(Number)).optional().default(0),
-  nitaqat_points: z.number().min(0).or(z.string().regex(/^\d+(\.\d+)?$/).transform(Number)).optional().default(0),
+  base_salary: numField,
+  housing_allowance: numField.optional().default(0),
+  transport_allowance: numField.optional().default(0),
+  other_allowance: numField.optional().default(0),
+  annual_incentive_multiplier: numField.optional().default(0),
+  nitaqat_points: numField.optional().default(0),
   gosi_registered: z.boolean().optional().default(true),
   bank_iban: z.string().optional().or(z.literal('')),
   bank_name: z.string().optional().or(z.literal('')),
