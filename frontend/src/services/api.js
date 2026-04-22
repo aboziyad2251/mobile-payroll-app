@@ -771,32 +771,24 @@ export const submitLeaveRequest = async (body) => {
 };
 
 export const getCEOLeaves = async () => {
-    // 1. Get all leaves where requester_role is 'admin' or 'CEO'
-    const { data: ceoLeaves, error: err1 } = await db.from('leave_requests')
+    // Fetch all approved leaves to ensure we don't miss anything due to filter complexity
+    const { data, error } = await db.from('leave_requests')
         .select('*, employees(first_name, last_name, employee_number, department)')
-        .or('requester_role.eq.admin,requester_role.eq.CEO')
-        .order('created_at', { ascending: false });
+        .eq('status', 'approved')
+        .order('start_date', { ascending: false });
 
-    if (err1) return wrap([]);
+    if (error) return wrap([]);
 
-    // 2. Also get leaves where employee_id belongs to an admin/CEO (fallback)
-    const { data: adminUsers } = await db.from('app_users').select('employee_id').or('role.eq.admin,role.eq.CEO');
-    const empIds = (adminUsers || []).map(u => u.employee_id).filter(Boolean);
-    
-    let combined = ceoLeaves || [];
-    if (empIds.length > 0) {
-        const { data: extraLeaves } = await db.from('leave_requests')
-            .select('*, employees(first_name, last_name, employee_number, department)')
-            .in('employee_id', empIds);
-        
-        // Merge without duplicates
-        const existingIds = new Set(combined.map(c => c.id));
-        (extraLeaves || []).forEach(l => {
-            if (!existingIds.has(l.id)) combined.push(l);
-        });
-    }
+    // Filter for CEO/Management leaves:
+    // 1. requester_role is 'admin' or 'CEO'
+    // 2. OR it has no employee_id (Management post)
+    const ceoLeaves = (data || []).filter(l => 
+        l.requester_role === 'admin' || 
+        l.requester_role === 'CEO' || 
+        !l.employee_id
+    );
 
-    return wrap(combined.map(r => ({ ...r, ...r.employees, employees: undefined })));
+    return wrap(ceoLeaves.map(r => ({ ...r, ...r.employees, employees: undefined })));
 };
 
 export const approveLeaveRequest = async (id, reviewedBy = 'Admin', reqData = null) => {
