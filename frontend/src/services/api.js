@@ -771,15 +771,32 @@ export const submitLeaveRequest = async (body) => {
 };
 
 export const getCEOLeaves = async () => {
-    const { data: adminUsers } = await db.from('app_users').select('employee_id').eq('role', 'admin');
-    const empIds = (adminUsers || []).map(u => u.employee_id).filter(Boolean);
-    if (empIds.length === 0) return wrap([]);
-    const { data, error } = await db.from('leave_requests')
+    // 1. Get all leaves where requester_role is 'admin' or 'CEO'
+    const { data: ceoLeaves, error: err1 } = await db.from('leave_requests')
         .select('*, employees(first_name, last_name, employee_number, department)')
-        .in('employee_id', empIds)
+        .or('requester_role.eq.admin,requester_role.eq.CEO')
         .order('created_at', { ascending: false });
-    if (error) return wrap([]);
-    return wrap((data || []).map(r => ({ ...r, ...r.employees, employees: undefined })));
+
+    if (err1) return wrap([]);
+
+    // 2. Also get leaves where employee_id belongs to an admin/CEO (fallback)
+    const { data: adminUsers } = await db.from('app_users').select('employee_id').or('role.eq.admin,role.eq.CEO');
+    const empIds = (adminUsers || []).map(u => u.employee_id).filter(Boolean);
+    
+    let combined = ceoLeaves || [];
+    if (empIds.length > 0) {
+        const { data: extraLeaves } = await db.from('leave_requests')
+            .select('*, employees(first_name, last_name, employee_number, department)')
+            .in('employee_id', empIds);
+        
+        // Merge without duplicates
+        const existingIds = new Set(combined.map(c => c.id));
+        (extraLeaves || []).forEach(l => {
+            if (!existingIds.has(l.id)) combined.push(l);
+        });
+    }
+
+    return wrap(combined.map(r => ({ ...r, ...r.employees, employees: undefined })));
 };
 
 export const approveLeaveRequest = async (id, reviewedBy = 'Admin', reqData = null) => {
