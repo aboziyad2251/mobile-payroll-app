@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { DollarSign, Calculator, FileText, TrendingDown, Printer, X, Gift, ChevronDown, ChevronUp, ShieldCheck, Download, AlertTriangle, Building2, Save } from 'lucide-react';
+import { DollarSign, Calculator, FileText, TrendingDown, Printer, X, Gift, ChevronDown, ChevronUp, ShieldCheck, Download, AlertTriangle, Building2, Save, Layers } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { getPayroll, calculatePayroll, getPayrollSummary, generatePayslipPDF, getEmployees, calculateEOSB, updatePayrollStatus, updatePayrollBonus, getEstablishment, saveEstablishment, generateWPSSIF } from '../services/api';
+import { getPayroll, calculatePayroll, getPayrollSummary, generatePayslipPDF, getEmployees, calculateEOSB, updatePayrollStatus, updatePayrollBonus, getEstablishment, saveEstablishment, generateWPSSIF, getSalaryLadder, getSalaryLadderGrades, generateSalaryLadder, deleteSalaryLadderGrade } from '../services/api';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../context/AuthContext';
 
@@ -45,6 +45,14 @@ export default function Payroll() {
     const [wpsGenerating, setWpsGenerating] = useState(false);
     const [wpsViolations, setWpsViolations] = useState([]);
 
+    // Salary Ladder state
+    const [ladderData, setLadderData] = useState([]);
+    const [ladderGrades, setLadderGrades] = useState([]);
+    const [ladderFilter, setLadderFilter] = useState('');
+    const [ladderLoading, setLadderLoading] = useState(false);
+    const [showGenerate, setShowGenerate] = useState(false);
+    const [genForm, setGenForm] = useState({ grade: '', start_min: '', start_max: '', annual_increment: '', years: 10 });
+
     const load = () => {
         setLoading(true);
         Promise.all([
@@ -56,6 +64,16 @@ export default function Payroll() {
     useEffect(load, [month, year]);
     useEffect(() => { getEmployees({ status: 'active', ids: subordinateIds }).then(r => setEmployees(r.data || [])).catch(e => console.error('Employees fetch failed:', e)); }, [subordinateIds]);
     useEffect(() => { getEstablishment().then(r => { if (r.data) setEstab(e => ({ ...e, ...r.data })); }).catch(e => console.error('Establishment fetch failed:', e)); }, []);
+
+    // Load salary ladder data
+    const loadLadder = () => {
+        setLadderLoading(true);
+        Promise.all([getSalaryLadder(ladderFilter || undefined), getSalaryLadderGrades()])
+            .then(([d, g]) => { setLadderData(d.data || []); setLadderGrades(g.data || []); })
+            .catch(() => {})
+            .finally(() => setLadderLoading(false));
+    };
+    useEffect(() => { if (tab === 'ladder') loadLadder(); }, [tab, ladderFilter]);
 
     const handleSaveEstab = async () => {
         setEstabSaving(true);
@@ -203,6 +221,7 @@ export default function Payroll() {
                     { id: 'payroll', label: t('pay.title'), icon: DollarSign },
                     { id: 'eosb', label: isAr ? 'نهاية خدمة' : 'EOSB', icon: TrendingDown },
                     { id: 'wps', label: 'WPS / SIF', icon: ShieldCheck },
+                    ...((role === 'admin' || role === 'manager') ? [{ id: 'ladder', label: isAr ? 'سلم الرواتب' : 'Salary Ladder', icon: Layers }] : []),
                 ].map(({ id, label, icon: Icon }) => (
                     <button key={id} onClick={() => setTab(id)} style={{
                         flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '9px 6px', borderRadius: 7,
@@ -576,6 +595,7 @@ export default function Payroll() {
                                 [isAr ? 'الرقم' : 'ID', payslip.employee_number],
                                 [isAr ? 'القسم' : 'Dept', payslip.department],
                                 [isAr ? 'الوظيفة' : 'Position', payslip.position || '—'],
+                                [isAr ? 'الدرجة' : 'Grade', payslip.grade || '—'],
                             ].map(([label, value]) => (
                                 <div key={label} style={{ padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
                                     <div style={{ fontSize: '0.65rem', color: 'var(--text-dim)', textTransform: 'uppercase', marginBottom: 1 }}>{label}</div>
@@ -622,6 +642,144 @@ export default function Payroll() {
                             <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>{isAr ? 'صافي الراتب' : 'NET PAY'}</span>
                             <span style={{ fontWeight: 800, fontSize: '1.3rem', color: '#10b981' }}>{fmt(payslip.net_pay)} SAR</span>
                         </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ── SALARY LADDER TAB ── */}
+            {tab === 'ladder' && (role === 'admin' || role === 'manager') && (
+                <div style={{ background: 'var(--surface)', borderRadius: 18, border: '1px solid var(--border)', padding: 20 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
+                        <div>
+                            <h3 style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                                <Layers size={18} color="var(--primary)" />
+                                {isAr ? 'سلم الرواتب (10 سنوات)' : 'Salary Ladder (10-Year Progression)'}
+                            </h3>
+                            <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                                {isAr ? 'تعريف الحد الأدنى والأقصى لكل درجة' : 'Define min/max salary per grade per year of service'}
+                            </p>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                            <select className="form-control" value={ladderFilter} onChange={e => setLadderFilter(e.target.value)} style={{ minWidth: 140 }}>
+                                <option value="">{isAr ? 'كل الدرجات' : 'All Grades'}</option>
+                                {ladderGrades.map(g => <option key={g} value={g}>{g}</option>)}
+                            </select>
+                            <button className="btn btn-primary" onClick={() => setShowGenerate(true)}>
+                                <Calculator size={14} /> {isAr ? 'توليد سلم' : 'Generate'}
+                            </button>
+                        </div>
+                    </div>
+
+                    {ladderLoading ? (
+                        <div style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>{isAr ? 'جاري التحميل...' : 'Loading...'}</div>
+                    ) : ladderData.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '50px 20px', color: 'var(--text-muted)' }}>
+                            <Layers size={48} style={{ opacity: 0.2, marginBottom: 12 }} />
+                            <p style={{ fontSize: '0.88rem' }}>{isAr ? 'لا توجد بيانات بعد' : 'No salary ladder defined yet'}</p>
+                            <p style={{ fontSize: '0.75rem', marginTop: 4 }}>{isAr ? 'اضغط توليد سلم للبدء' : 'Click Generate to create one'}</p>
+                        </div>
+                    ) : (
+                        <div>
+                            {/* Group by grade */}
+                            {[...new Set(ladderData.map(d => d.grade))].map(grade => {
+                                const rows = ladderData.filter(d => d.grade === grade);
+                                return (
+                                    <div key={grade} style={{ marginBottom: 20 }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                                            <span style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--primary)' }}>{grade}</span>
+                                            <button onClick={async () => {
+                                                if (!window.confirm(isAr ? `حذف سلم ${grade}؟` : `Delete ladder for ${grade}?`)) return;
+                                                try { await deleteSalaryLadderGrade(grade); toast.success(isAr ? 'تم الحذف' : 'Deleted'); loadLadder(); } catch (e) { toast.error(e.message); }
+                                            }} style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: 'none', borderRadius: 8, padding: '4px 10px', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer' }}>
+                                                {isAr ? 'حذف' : 'Delete'}
+                                            </button>
+                                        </div>
+                                        <div style={{ overflowX: 'auto' }}>
+                                            <table style={{ width: '100%', fontSize: '0.8rem', borderCollapse: 'collapse' }}>
+                                                <thead>
+                                                    <tr style={{ background: 'var(--bg2)' }}>
+                                                        <th style={{ padding: '8px 10px', textAlign: isAr ? 'right' : 'left', fontWeight: 700, fontSize: '0.72rem', color: 'var(--text-muted)' }}>{isAr ? 'السنة' : 'Year'}</th>
+                                                        <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, fontSize: '0.72rem', color: 'var(--text-muted)' }}>{isAr ? 'الحد الأدنى' : 'Min Salary'}</th>
+                                                        <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, fontSize: '0.72rem', color: 'var(--text-muted)' }}>{isAr ? 'الحد الأقصى' : 'Max Salary'}</th>
+                                                        <th style={{ padding: '8px 10px', textAlign: 'center', fontWeight: 700, fontSize: '0.72rem', color: 'var(--text-muted)' }}>{isAr ? 'الزيادة السنوية' : 'Increment'}</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {rows.map(r => (
+                                                        <tr key={r.id || r.year_number} style={{ borderBottom: '1px solid var(--border)' }}>
+                                                            <td style={{ padding: '8px 10px', fontWeight: 600 }}>{isAr ? `السنة ${r.year_number}` : `Year ${r.year_number}`}</td>
+                                                            <td style={{ padding: '8px 10px', textAlign: 'center', color: '#10b981', fontWeight: 700 }}>{Number(r.min_salary).toLocaleString()}</td>
+                                                            <td style={{ padding: '8px 10px', textAlign: 'center', color: '#4f46e5', fontWeight: 700 }}>{Number(r.max_salary).toLocaleString()}</td>
+                                                            <td style={{ padding: '8px 10px', textAlign: 'center', color: 'var(--text-muted)' }}>{Number(r.annual_increment).toLocaleString()}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Generate Salary Ladder Modal */}
+            {showGenerate && (
+                <div className="modal-overlay" onClick={e => e.target === e.currentTarget && setShowGenerate(false)}>
+                    <div className="modal" style={{ maxWidth: 440 }}>
+                        <div className="modal-header">
+                            <h3 className="modal-title"><Layers size={17} style={{ marginInlineEnd: 8 }} />{isAr ? 'توليد سلم رواتب' : 'Generate Salary Ladder'}</h3>
+                            <button className="modal-close" onClick={() => setShowGenerate(false)}><X size={18} /></button>
+                        </div>
+                        <form onSubmit={async (e) => {
+                            e.preventDefault();
+                            try {
+                                await generateSalaryLadder({
+                                    grade: genForm.grade,
+                                    start_min: Number(genForm.start_min),
+                                    start_max: Number(genForm.start_max),
+                                    annual_increment: Number(genForm.annual_increment),
+                                    years: Number(genForm.years) || 10,
+                                });
+                                toast.success(isAr ? 'تم توليد السلم' : 'Ladder generated');
+                                setShowGenerate(false);
+                                setGenForm({ grade: '', start_min: '', start_max: '', annual_increment: '', years: 10 });
+                                loadLadder();
+                            } catch (err) { toast.error(err.message); }
+                        }} style={{ display: 'flex', flexDirection: 'column', gap: 14, paddingTop: 16 }}>
+                            <div className="form-group">
+                                <label className="form-label">{isAr ? 'الدرجة' : 'Grade'} *</label>
+                                <select className="form-control" required value={genForm.grade} onChange={e => setGenForm(f => ({ ...f, grade: e.target.value }))}>
+                                    <option value="">{isAr ? 'اختر درجة' : 'Select Grade'}</option>
+                                    {['Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6','Grade 7','Grade 8','Grade 9','Grade 10'].map(g => <option key={g} value={g}>{g}</option>)}
+                                </select>
+                            </div>
+                            <div className="form-row">
+                                <div className="form-group">
+                                    <label className="form-label">{isAr ? 'الحد الأدنى (سنة 1)' : 'Min Salary (Year 1)'} *</label>
+                                    <input className="form-control" type="number" step="0.01" required value={genForm.start_min} onChange={e => setGenForm(f => ({ ...f, start_min: e.target.value }))} placeholder="3000" />
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">{isAr ? 'الحد الأقصى (سنة 1)' : 'Max Salary (Year 1)'} *</label>
+                                    <input className="form-control" type="number" step="0.01" required value={genForm.start_max} onChange={e => setGenForm(f => ({ ...f, start_max: e.target.value }))} placeholder="5000" />
+                                </div>
+                            </div>
+                            <div className="form-row">
+                                <div className="form-group">
+                                    <label className="form-label">{isAr ? 'الزيادة السنوية' : 'Annual Increment'}</label>
+                                    <input className="form-control" type="number" step="0.01" value={genForm.annual_increment} onChange={e => setGenForm(f => ({ ...f, annual_increment: e.target.value }))} placeholder="500" />
+                                </div>
+                                <div className="form-group">
+                                    <label className="form-label">{isAr ? 'عدد السنوات' : 'Years'}</label>
+                                    <input className="form-control" type="number" min="1" max="20" value={genForm.years} onChange={e => setGenForm(f => ({ ...f, years: e.target.value }))} />
+                                </div>
+                            </div>
+                            <div className="modal-footer">
+                                <button type="button" className="btn btn-secondary" onClick={() => setShowGenerate(false)}>{isAr ? 'إلغاء' : 'Cancel'}</button>
+                                <button type="submit" className="btn btn-primary"><Layers size={14} /> {isAr ? 'توليد' : 'Generate'}</button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}

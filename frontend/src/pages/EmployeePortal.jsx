@@ -165,8 +165,13 @@ export default function EmployeePortal() {
                         <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: '0.8rem' }}>{labels.welcome}</div>
                         <div style={{ color: 'white', fontWeight: 800, fontSize: '1.3rem' }}>{fullName}</div>
                         {employee && (
-                            <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.82rem', marginTop: 2 }}>
-                                {employee.position} · {employee.department}
+                            <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.82rem', marginTop: 2, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                <span>{employee.position} · {employee.department}</span>
+                                {employee.grade && (
+                                    <span style={{ background: 'rgba(255,255,255,0.2)', borderRadius: 6, padding: '2px 8px', fontSize: '0.72rem', fontWeight: 700 }}>
+                                        {employee.grade}
+                                    </span>
+                                )}
                             </div>
                         )}
                     </div>
@@ -269,24 +274,81 @@ export default function EmployeePortal() {
                         {tab === 'leaves' && (
                             <div>
                                 {/* Balance cards */}
-                                {leaveBalance && (
-                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 20 }}>
-                                        {[
-                                            { label: isAr ? 'السنوية' : 'Annual', used: leaveBalance.annual_leave_used, total: leaveBalance.annual_leave_total, color: '#4f46e5' },
-                                            { label: isAr ? 'المرضية' : 'Sick', used: leaveBalance.sick_leave_used, total: leaveBalance.sick_leave_total, color: '#ef4444' },
-                                            { label: isAr ? 'الطارئة' : 'Emergency', used: leaveBalance.emergency_leave_used, total: leaveBalance.emergency_leave_total, color: '#f59e0b' },
-                                        ].map(b => (
-                                            <div key={b.label} className="card" style={{ padding: 16, textAlign: 'center' }}>
-                                                <div style={{ fontSize: '1.6rem', fontWeight: 800, color: b.color }}>{b.total - b.used}</div>
-                                                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>{b.label}</div>
-                                                <div style={{ fontSize: '0.68rem', color: 'var(--text-dim)' }}>{b.used}/{b.total} {isAr ? 'مستخدم' : 'used'}</div>
-                                                <div style={{ marginTop: 8, height: 4, background: 'var(--border)', borderRadius: 2 }}>
-                                                    <div style={{ height: 4, width: `${Math.min(100, (b.used / b.total) * 100)}%`, background: b.color, borderRadius: 2, transition: 'width 0.5s' }} />
+                                {leaveBalance && (() => {
+                                    const annual = leaveBalance.annual_leave || { total: leaveBalance.annual_leave_total || 21, used: leaveBalance.annual_leave_used || 0, remaining: (leaveBalance.annual_leave_total || 21) - (leaveBalance.annual_leave_used || 0) };
+                                    const emergency = leaveBalance.emergency_leave || { total: leaveBalance.emergency_leave_total || 10, used: leaveBalance.emergency_leave_used || 0, remaining: (leaveBalance.emergency_leave_total || 10) - (leaveBalance.emergency_leave_used || 0) };
+                                    const sick = leaveBalance.sick_leave || { total: leaveBalance.sick_leave_total || 120, used: leaveBalance.sick_leave_used || 0, remaining: (leaveBalance.sick_leave_total || 120) - (leaveBalance.sick_leave_used || 0), tiers: [] };
+                                    const serviceYears = leaveBalance.service_years || 0;
+                                    return (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginBottom: 20 }}>
+                                            {/* Service info banner */}
+                                            <div style={{ background: 'rgba(79,70,229,0.08)', border: '1px solid rgba(79,70,229,0.2)', borderRadius: 12, padding: '10px 14px', fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                <span style={{ fontSize: '1rem' }}>⚖️</span>
+                                                <span>{isAr ? `حسب نظام العمل السعودي — سنوات الخدمة: ${serviceYears}` : `Saudi Labor Law Compliant — Service Years: ${serviceYears}`}</span>
+                                            </div>
+
+                                            {/* Annual + Emergency row */}
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                                                {/* Annual Leave */}
+                                                <div className="card" style={{ padding: 16, textAlign: 'center' }}>
+                                                    <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#4f46e5', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>{isAr ? 'الإجازة السنوية' : 'Annual Leave'}</div>
+                                                    <div style={{ fontSize: '2rem', fontWeight: 800, color: '#4f46e5', lineHeight: 1 }}>{annual.remaining}</div>
+                                                    <div style={{ fontSize: '0.68rem', color: 'var(--text-dim)', marginTop: 2 }}>{annual.used}/{annual.total} {isAr ? 'مستخدم' : 'used'}</div>
+                                                    <div style={{ marginTop: 8, height: 5, background: 'var(--border)', borderRadius: 3 }}>
+                                                        <div style={{ height: 5, width: `${Math.min(100, (annual.used / annual.total) * 100)}%`, background: '#4f46e5', borderRadius: 3, transition: 'width 0.5s' }} />
+                                                    </div>
+                                                    {serviceYears >= 5 && <div style={{ fontSize: '0.65rem', color: '#10b981', marginTop: 6, fontWeight: 600 }}>✅ {isAr ? '30 يوم (+5 سنوات)' : '30 days (5+ years)'}</div>}
+                                                </div>
+
+                                                {/* Emergency Leave */}
+                                                <div className="card" style={{ padding: 16, textAlign: 'center' }}>
+                                                    <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>{isAr ? 'الإجازة الطارئة' : 'Emergency Leave'}</div>
+                                                    <div style={{ fontSize: '2rem', fontWeight: 800, color: '#f59e0b', lineHeight: 1 }}>{emergency.remaining}</div>
+                                                    <div style={{ fontSize: '0.68rem', color: 'var(--text-dim)', marginTop: 2 }}>{emergency.used}/{emergency.total} {isAr ? 'مستخدم' : 'used'}</div>
+                                                    <div style={{ marginTop: 8, height: 5, background: 'var(--border)', borderRadius: 3 }}>
+                                                        <div style={{ height: 5, width: `${Math.min(100, (emergency.used / emergency.total) * 100)}%`, background: '#f59e0b', borderRadius: 3, transition: 'width 0.5s' }} />
+                                                    </div>
                                                 </div>
                                             </div>
-                                        ))}
-                                    </div>
-                                )}
+
+                                            {/* Sick Leave — Tiered Card */}
+                                            <div className="card" style={{ padding: 18 }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                                                    <div>
+                                                        <div style={{ fontSize: '0.72rem', fontWeight: 700, color: '#ef4444', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{isAr ? 'الإجازة المرضية' : 'Sick Leave'}</div>
+                                                        <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: 2 }}>{isAr ? 'نظام العمل - مادة 117' : 'Labor Law Art. 117'}</div>
+                                                    </div>
+                                                    <div style={{ textAlign: 'center' }}>
+                                                        <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#ef4444', lineHeight: 1 }}>{sick.remaining}</div>
+                                                        <div style={{ fontSize: '0.62rem', color: 'var(--text-dim)' }}>{isAr ? 'متبقي' : 'remaining'}</div>
+                                                    </div>
+                                                </div>
+                                                {/* Tier breakdown */}
+                                                {(sick.tiers || []).filter(t => t.days !== null).map((tier, i) => {
+                                                    const colors = ['#10b981', '#f59e0b', '#ef4444'];
+                                                    const pct = tier.days > 0 ? (tier.used / tier.days) * 100 : 0;
+                                                    return (
+                                                        <div key={i} style={{ marginBottom: 10 }}>
+                                                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', marginBottom: 3 }}>
+                                                                <span style={{ fontWeight: 600, color: colors[i] }}>{isAr ? tier.label_ar : tier.label}</span>
+                                                                <span style={{ color: 'var(--text-muted)' }}>{tier.remaining}/{tier.days} {isAr ? 'متبقي' : 'left'}</span>
+                                                            </div>
+                                                            <div style={{ height: 6, background: 'var(--border)', borderRadius: 3 }}>
+                                                                <div style={{ height: 6, width: `${Math.min(100, pct)}%`, background: colors[i], borderRadius: 3, transition: 'width 0.5s' }} />
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                                {/* Beyond tiers warning */}
+                                                {(sick.tiers || []).filter(t => t.days === null && t.used > 0).length > 0 && (
+                                                    <div style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, padding: '8px 10px', fontSize: '0.72rem', color: '#ef4444', marginTop: 4 }}>
+                                                        ⚠️ {isAr ? 'تجاوز الحد المسموح — قرار الموارد البشرية' : 'Exceeded limit — requires HR decision'}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
 
                                 {/* Request button */}
                                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
@@ -358,9 +420,10 @@ export default function EmployeePortal() {
                                                     <label className="form-label">{isAr ? 'نوع الإجازة' : 'Leave Type'}</label>
                                                     <select className="form-control" value={leaveForm.leave_type} onChange={e => setLeaveForm(f => ({ ...f, leave_type: e.target.value }))}>
                                                         <option value="annual">{isAr ? 'إجازة سنوية' : 'Annual Leave'}</option>
+                                                        <option value="sick">{isAr ? 'إجازة مرضية' : 'Sick Leave'}</option>
                                                         <option value="emergency">{isAr ? 'إجازة طارئة' : 'Emergency Leave'}</option>
                                                         <option value="exam">{isAr ? 'إجازة امتحانات' : 'Exam Leave'}</option>
-                                                        <option value="sport">{isAr ? 'إجازة رياضية' : 'Sport Leave'}</option>
+                                                        <option value="unpaid">{isAr ? 'إجازة بدون راتب' : 'Unpaid Leave'}</option>
                                                         <option value="national_day">{isAr ? 'اليوم الوطني' : 'National Day'}</option>
                                                         <option value="foundation_day">{isAr ? 'يوم التأسيس' : 'Foundation Day'}</option>
                                                         <option value="eid_fitr">{isAr ? 'عيد الفطر' : 'Eid Al-Fitr'}</option>

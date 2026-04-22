@@ -7,7 +7,7 @@ router.get('/', (req, res) => {
     try {
         const { month, year, employee_id } = req.query;
         let query = `
-      SELECT p.*, e.first_name, e.last_name, e.employee_number, e.department, e.position
+      SELECT p.*, e.first_name, e.last_name, e.employee_number, e.department, e.position, e.grade
       FROM payroll p JOIN employees e ON p.employee_id = e.id WHERE 1=1
     `;
         const params = [];
@@ -49,10 +49,42 @@ router.post('/calculate', (req, res) => {
             const overtimeHours = ((attSummary.total_overtime_minutes || 0) / 60);
 
             const dailyRate = emp.base_salary / workingDays;
+
+            // Tiered sick leave deduction (Saudi Labor Law Art. 117)
+            let sickLeaveDeduction = 0;
+            const sickDays = db.prepare(`
+                SELECT COUNT(*) as cnt FROM attendance 
+                WHERE employee_id = ? AND date >= ? AND date <= ? AND status = 'sick_leave'
+            `).get(emp.id, periodStart, periodEnd)?.cnt || 0;
+
+            if (sickDays > 0) {
+                const year = parseInt(periodStart.split('-')[0]);
+                const balance = db.prepare('SELECT * FROM leave_balance WHERE employee_id = ? AND year = ?').get(emp.id, year);
+                const totalSickUsed = (balance?.sick_leave_used || 0);
+                const fullPayLimit = balance?.sick_leave_full_pay_days || 30;
+                const seventyFiveLimit = (balance?.sick_leave_75_pay_days || 60);
+                const fiftyLimit = (balance?.sick_leave_50_pay_days || 30);
+
+                // Calculate deduction for each sick day based on cumulative usage
+                for (let d = 0; d < sickDays; d++) {
+                    const dayIndex = totalSickUsed - sickDays + d; // position in total usage
+                    if (dayIndex < fullPayLimit) {
+                        sickLeaveDeduction += 0; // 100% pay, no deduction
+                    } else if (dayIndex < fullPayLimit + seventyFiveLimit) {
+                        sickLeaveDeduction += dailyRate * 0.25; // 75% pay = 25% deduction
+                    } else if (dayIndex < fullPayLimit + seventyFiveLimit + fiftyLimit) {
+                        sickLeaveDeduction += dailyRate * 0.50; // 50% pay = 50% deduction
+                    } else {
+                        sickLeaveDeduction += dailyRate; // HR decision / unpaid
+                    }
+                }
+            }
+
             const absenceDeduction = dailyRate * daysAbsent;
+            const totalDeductions = absenceDeduction + sickLeaveDeduction;
             const overtimePay = (emp.base_salary / workingDays / 8) * 1.5 * overtimeHours;
             const grossPay = emp.base_salary + emp.housing_allowance + emp.transport_allowance + emp.other_allowance + overtimePay;
-            const netPay = grossPay - absenceDeduction;
+            const netPay = grossPay - totalDeductions;
             const annualIncentive = emp.annual_incentive_multiplier * emp.base_salary;
 
             db.prepare(`
@@ -73,7 +105,7 @@ router.post('/calculate', (req, res) => {
       `).run(
                 emp.id, month, year, emp.base_salary,
                 emp.housing_allowance, emp.transport_allowance, emp.other_allowance,
-                grossPay, absenceDeduction, absenceDeduction, Math.max(0, netPay),
+                grossPay, totalDeductions, totalDeductions, Math.max(0, netPay),
                 workingDays, daysWorked, daysAbsent,
                 Math.round(overtimeHours * 100) / 100, Math.round(overtimePay * 100) / 100,
                 Math.round(annualIncentive * 100) / 100
@@ -118,6 +150,117 @@ router.put('/:id/paid', (req, res) => {
     try {
         db.prepare("UPDATE payroll SET status = 'paid', processed_at = datetime('now') WHERE id = ?").run(req.params.id);
         res.json({ message: 'Marked as paid' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ============================================================
+// SALARY LADDER ENDPOINTS
+// ============================================================
+
+// GET all salary ladder records (optionally filtered by grade)
+router.get('/salary-ladder', (req, res) => {
+    try {
+        const { grade } = req.query;
+        let query = 'SELECT * FROM salary_ladder';
+        const params = [];
+        if (grade) { query += ' WHERE grade = ?'; params.push(grade); }
+        query += ' ORDER BY grade, year_number';
+        const records = db.prepare(query).all(...params);
+        res.json(records);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// GET all distinct grades in the salary ladder
+router.get('/salary-ladder/grades', (req, res) => {
+    try {
+        const grades = db.prepare('SELECT DISTINCT grade FROM salary_ladder ORDER BY grade').all();
+        res.json(grades.map(g => g.grade));
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// POST create or update a single salary ladder entry
+router.post('/salary-ladder', (req, res) => {
+    try {
+        const { grade, year_number, min_salary, max_salary, annual_increment } = req.body;
+        db.prepare(`
+            INSERT INTO salary_ladder (grade, year_number, min_salary, max_salary, annual_increment)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(grade, year_number) DO UPDATE SET
+                min_salary = excluded.min_salary,
+                max_salary = excluded.max_salary,
+                annual_increment = excluded.annual_increment,
+                updated_at = datetime('now')
+        `).run(grade, year_number, min_salary || 0, max_salary || 0, annual_increment || 0);
+        const entry = db.prepare('SELECT * FROM salary_ladder WHERE grade = ? AND year_number = ?').get(grade, year_number);
+        res.json(entry);
+    } catch (err) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
+// POST auto-generate 10-year ladder for a grade
+router.post('/salary-ladder/generate', (req, res) => {
+    try {
+        const { grade, start_min, start_max, annual_increment, years = 10 } = req.body;
+        if (!grade || start_min == null || start_max == null) {
+            return res.status(400).json({ error: 'grade, start_min, and start_max are required' });
+        }
+
+        const increment = annual_increment || 0;
+        const entries = [];
+
+        const insertStmt = db.prepare(`
+            INSERT INTO salary_ladder (grade, year_number, min_salary, max_salary, annual_increment)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(grade, year_number) DO UPDATE SET
+                min_salary = excluded.min_salary,
+                max_salary = excluded.max_salary,
+                annual_increment = excluded.annual_increment,
+                updated_at = datetime('now')
+        `);
+
+        const transaction = db.transaction(() => {
+            for (let y = 1; y <= years; y++) {
+                const minSal = Math.round((start_min + increment * (y - 1)) * 100) / 100;
+                const maxSal = Math.round((start_max + increment * (y - 1)) * 100) / 100;
+                insertStmt.run(grade, y, minSal, maxSal, increment);
+                entries.push({ grade, year_number: y, min_salary: minSal, max_salary: maxSal, annual_increment: increment });
+            }
+        });
+        transaction();
+
+        res.json({ grade, years: entries.length, entries });
+    } catch (err) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
+// PUT update a single salary ladder entry by id
+router.put('/salary-ladder/:id', (req, res) => {
+    try {
+        const { min_salary, max_salary, annual_increment } = req.body;
+        db.prepare(`
+            UPDATE salary_ladder SET min_salary = ?, max_salary = ?, annual_increment = ?, updated_at = datetime('now')
+            WHERE id = ?
+        `).run(min_salary, max_salary, annual_increment, req.params.id);
+        const entry = db.prepare('SELECT * FROM salary_ladder WHERE id = ?').get(req.params.id);
+        res.json(entry);
+    } catch (err) {
+        res.status(400).json({ error: err.message });
+    }
+});
+
+// DELETE all salary ladder entries for a grade
+router.delete('/salary-ladder/:grade', (req, res) => {
+    try {
+        const result = db.prepare('DELETE FROM salary_ladder WHERE grade = ?').run(req.params.grade);
+        res.json({ message: `Deleted ${result.changes} entries for ${req.params.grade}` });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

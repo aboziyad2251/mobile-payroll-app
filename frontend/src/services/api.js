@@ -68,6 +68,7 @@ export const createEmployee = async (body) => {
         iban: validBody.iban || null,
         bank_code: validBody.bank_code || null,
         bank_name: validBody.bank_name || null,
+        grade: validBody.grade || null,
     }]).select();
     if (error) throw new Error(error.message);
     // Create initial leave balance
@@ -107,6 +108,7 @@ export const updateEmployee = async (id, body) => {
         iban: validBody.iban || null,
         bank_code: validBody.bank_code || null,
         bank_name: validBody.bank_name || null,
+        grade: validBody.grade || null,
     }).eq('id', id).select();
     if (error) throw new Error(error.message);
     return wrap(data[0]);
@@ -424,7 +426,7 @@ export const getPayroll = async ({ month, year } = {}) => {
     if (rows.length === 0) return wrap([]);
     // Fetch employee details separately (no FK constraint in InsForge)
     const empIds = [...new Set(rows.map(r => r.employee_id).filter(Boolean))];
-    const { data: emps } = await db.from('employees').select('id, employee_number, first_name, last_name, department').in('id', empIds);
+    const { data: emps } = await db.from('employees').select('id, employee_number, first_name, last_name, department, position, grade').in('id', empIds);
     const empMap = {};
     (emps || []).forEach(e => { empMap[e.id] = e; });
     const flat = rows.map(r => {
@@ -436,6 +438,8 @@ export const getPayroll = async ({ month, year } = {}) => {
             last_name: emp.last_name,
             employee_number: emp.employee_number,
             department: emp.department,
+            position: emp.position,
+            grade: emp.grade,
         };
     });
     return wrap(flat);
@@ -883,9 +887,48 @@ export const rejectLeaveRequest = async (id, reviewedBy = 'Admin', notes = '', r
 
 export const getLeaveBalance = async (employee_id) => {
     const year = new Date().getFullYear();
-    const { data, error } = await db.from('leave_balance').select('*').eq('employee_id', employee_id).eq('year', year).maybeSingle();
+    const { data: lb, error } = await db.from('leave_balance').select('*').eq('employee_id', employee_id).eq('year', year).maybeSingle();
     if (error) throw new Error(error.message);
-    return wrap(data || { annual_leave_total: 21, annual_leave_used: 0, sick_leave_total: 14, sick_leave_used: 0, emergency_leave_total: 5, emergency_leave_used: 0 });
+
+    // Get employee hire date for service years calculation
+    const { data: emp } = await db.from('employees').select('hire_date').eq('id', employee_id).single();
+    const hireDate = emp?.hire_date ? new Date(emp.hire_date) : new Date();
+    const serviceYears = Math.floor((new Date() - hireDate) / (1000 * 60 * 60 * 24 * 365.25));
+
+    // Saudi Labor Law: 21 days for < 5 years, 30 days for >= 5 years
+    const annualTotal = serviceYears >= 5 ? 30 : 21;
+    const annualUsed = Number(lb?.annual_leave_used || 0);
+
+    // Emergency leave: 10 days
+    const emergencyTotal = 10;
+    const emergencyUsed = Number(lb?.emergency_leave_used || 0);
+
+    // Sick leave tiers per Article 117: 30 days full, 60 days 75%, 30 days 50%, beyond = HR decision
+    const sickUsed = Number(lb?.sick_leave_used || 0);
+    const sickTotal = 120;
+    const tier1Used = Math.min(sickUsed, 30);
+    const tier2Used = Math.min(Math.max(sickUsed - 30, 0), 60);
+    const tier3Used = Math.min(Math.max(sickUsed - 90, 0), 30);
+    const tier4Used = Math.max(sickUsed - 120, 0);
+
+    return wrap({
+        service_years: serviceYears,
+        annual_leave: { total: annualTotal, used: annualUsed, remaining: Math.max(0, annualTotal - annualUsed) },
+        emergency_leave: { total: emergencyTotal, used: emergencyUsed, remaining: Math.max(0, emergencyTotal - emergencyUsed) },
+        sick_leave: {
+            total: sickTotal, used: sickUsed, remaining: Math.max(0, sickTotal - sickUsed),
+            tiers: [
+                { label: 'First 30 days (100% pay)', label_ar: 'أول 30 يوم (100% راتب)', days: 30, used: tier1Used, remaining: 30 - tier1Used, pay_pct: 100 },
+                { label: 'Next 60 days (75% pay)', label_ar: '60 يوم التالية (75% راتب)', days: 60, used: tier2Used, remaining: 60 - tier2Used, pay_pct: 75 },
+                { label: 'Last 30 days (50% pay)', label_ar: 'آخر 30 يوم (50% راتب)', days: 30, used: tier3Used, remaining: 30 - tier3Used, pay_pct: 50 },
+                { label: 'Beyond (HR Decision)', label_ar: 'تجاوز (قرار الموارد البشرية)', days: null, used: tier4Used, remaining: 0, pay_pct: 0 },
+            ],
+        },
+        // Legacy fallback fields
+        annual_leave_total: annualTotal, annual_leave_used: annualUsed,
+        sick_leave_total: sickTotal, sick_leave_used: sickUsed,
+        emergency_leave_total: emergencyTotal, emergency_leave_used: emergencyUsed,
+    });
 };
 
 export const calculateEOSB = (employee) => {
@@ -1259,4 +1302,69 @@ export const updateSettings = async (body) => {
         }
     }
     return wrap({ message: 'Settings saved' });
+};
+
+// ─── SALARY LADDER ────────────────────────────────────────────────────────────
+
+export const getSalaryLadder = async (grade) => {
+    let q = db.from('salary_ladder').select('*');
+    if (grade) q = q.eq('grade', grade);
+    const { data, error } = await q.order('grade', { ascending: true }).order('year_number', { ascending: true });
+    if (error) throw new Error(error.message);
+    return wrap(data || []);
+};
+
+export const getSalaryLadderGrades = async () => {
+    const { data, error } = await db.from('salary_ladder').select('grade');
+    if (error) throw new Error(error.message);
+    const unique = [...new Set((data || []).map(r => r.grade))].sort();
+    return wrap(unique);
+};
+
+export const createSalaryLadderEntry = async (body) => {
+    const { grade, year_number, min_salary, max_salary, annual_increment } = body;
+    // Upsert: check if exists
+    const { data: existing } = await db.from('salary_ladder')
+        .select('id').eq('grade', grade).eq('year_number', year_number).maybeSingle();
+    if (existing) {
+        const { data, error } = await db.from('salary_ladder').update({
+            min_salary: min_salary || 0, max_salary: max_salary || 0, annual_increment: annual_increment || 0,
+        }).eq('id', existing.id).select();
+        if (error) throw new Error(error.message);
+        return wrap(data[0]);
+    } else {
+        const { data, error } = await db.from('salary_ladder').insert([{
+            grade, year_number, min_salary: min_salary || 0, max_salary: max_salary || 0, annual_increment: annual_increment || 0,
+        }]).select();
+        if (error) throw new Error(error.message);
+        return wrap(data[0]);
+    }
+};
+
+export const generateSalaryLadder = async ({ grade, start_min, start_max, annual_increment, years = 10 }) => {
+    if (!grade || start_min == null || start_max == null) throw new Error('grade, start_min, and start_max are required');
+    const increment = annual_increment || 0;
+    const entries = [];
+    for (let y = 1; y <= years; y++) {
+        const minSal = Math.round((start_min + increment * (y - 1)) * 100) / 100;
+        const maxSal = Math.round((start_max + increment * (y - 1)) * 100) / 100;
+        await createSalaryLadderEntry({ grade, year_number: y, min_salary: minSal, max_salary: maxSal, annual_increment: increment });
+        entries.push({ grade, year_number: y, min_salary: minSal, max_salary: maxSal, annual_increment: increment });
+    }
+    return wrap({ grade, years: entries.length, entries });
+};
+
+export const updateSalaryLadderEntry = async (id, body) => {
+    const { min_salary, max_salary, annual_increment } = body;
+    const { data, error } = await db.from('salary_ladder').update({
+        min_salary, max_salary, annual_increment,
+    }).eq('id', id).select();
+    if (error) throw new Error(error.message);
+    return wrap(data[0]);
+};
+
+export const deleteSalaryLadderGrade = async (grade) => {
+    const { error } = await db.from('salary_ladder').delete().eq('grade', grade);
+    if (error) throw new Error(error.message);
+    return wrap({ message: `Deleted entries for ${grade}` });
 };

@@ -21,6 +21,7 @@ export const employeeSchema = z.object({
   bank_name: z.string().optional().or(z.literal('')),
   status: z.enum(['active', 'inactive']).optional().default('active'),
   role: z.enum(['employee', 'manager', 'admin', 'hr_manager', 'pending']).optional().default('employee'),
+  grade: z.string().optional().or(z.literal('')).or(z.literal(null)),
 });
 
 export const leaveRequestSchema = z.object({

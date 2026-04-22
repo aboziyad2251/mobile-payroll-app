@@ -41,19 +41,19 @@ router.post('/', (req, res) => {
         const {
             employee_number, first_name, last_name, email, phone,
             position, department, hire_date, salary_type, base_salary,
-            housing_allowance, transport_allowance, other_allowance, annual_incentive_multiplier
+            housing_allowance, transport_allowance, other_allowance, annual_incentive_multiplier, grade
         } = req.body;
 
         const result = db.prepare(`
       INSERT INTO employees 
       (employee_number, first_name, last_name, email, phone, position, department, hire_date,
-       salary_type, base_salary, housing_allowance, transport_allowance, other_allowance, annual_incentive_multiplier)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       salary_type, base_salary, housing_allowance, transport_allowance, other_allowance, annual_incentive_multiplier, grade)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
             employee_number, first_name, last_name, email, phone,
             position, department, hire_date, salary_type || 'monthly',
             base_salary || 0, housing_allowance || 0, transport_allowance || 0,
-            other_allowance || 0, annual_incentive_multiplier || 0
+            other_allowance || 0, annual_incentive_multiplier || 0, grade || null
         );
 
         // Create initial leave balance for current year
@@ -76,7 +76,7 @@ router.put('/:id', (req, res) => {
         const {
             employee_number, first_name, last_name, email, phone,
             position, department, hire_date, salary_type, base_salary,
-            housing_allowance, transport_allowance, other_allowance, annual_incentive_multiplier, status
+            housing_allowance, transport_allowance, other_allowance, annual_incentive_multiplier, status, grade
         } = req.body;
 
         db.prepare(`
@@ -84,13 +84,13 @@ router.put('/:id', (req, res) => {
         employee_number = ?, first_name = ?, last_name = ?, email = ?, phone = ?,
         position = ?, department = ?, hire_date = ?, salary_type = ?, base_salary = ?,
         housing_allowance = ?, transport_allowance = ?, other_allowance = ?,
-        annual_incentive_multiplier = ?, status = ?, updated_at = datetime('now')
+        annual_incentive_multiplier = ?, status = ?, grade = ?, updated_at = datetime('now')
       WHERE id = ?
     `).run(
             employee_number, first_name, last_name, email, phone,
             position, department, hire_date, salary_type,
             base_salary, housing_allowance, transport_allowance,
-            other_allowance, annual_incentive_multiplier, status || 'active',
+            other_allowance, annual_incentive_multiplier, status || 'active', grade || null,
             req.params.id
         );
 
@@ -121,7 +121,7 @@ router.get('/meta/departments', (req, res) => {
     }
 });
 
-// GET employee leave balance
+// GET employee leave balance (Saudi Labor Law compliant)
 router.get('/:id/leave-balance', (req, res) => {
     try {
         const year = req.query.year || new Date().getFullYear();
@@ -130,7 +130,55 @@ router.get('/:id/leave-balance', (req, res) => {
             db.prepare('INSERT OR IGNORE INTO leave_balance (employee_id, year) VALUES (?, ?)').run(req.params.id, year);
             balance = db.prepare('SELECT * FROM leave_balance WHERE employee_id = ? AND year = ?').get(req.params.id, year);
         }
-        res.json(balance);
+
+        // Calculate dynamic annual leave based on service years (Art. 109)
+        const employee = db.prepare('SELECT hire_date FROM employees WHERE id = ?').get(req.params.id);
+        let serviceYears = 0;
+        if (employee && employee.hire_date) {
+            const hireDate = new Date(employee.hire_date);
+            const now = new Date();
+            serviceYears = (now - hireDate) / (1000 * 60 * 60 * 24 * 365.25);
+        }
+        const dynamicAnnualTotal = serviceYears >= 5 ? 30 : 21;
+
+        // Calculate sick leave tier breakdown
+        const sickUsed = balance.sick_leave_used || 0;
+        const fullPayDays = balance.sick_leave_full_pay_days || 30;
+        const seventyFivePayDays = balance.sick_leave_75_pay_days || 60;
+        const fiftyPayDays = balance.sick_leave_50_pay_days || 30;
+
+        const tier1Used = Math.min(sickUsed, fullPayDays);
+        const tier2Used = Math.min(Math.max(0, sickUsed - fullPayDays), seventyFivePayDays);
+        const tier3Used = Math.min(Math.max(0, sickUsed - fullPayDays - seventyFivePayDays), fiftyPayDays);
+
+        res.json({
+            ...balance,
+            annual_leave_total: dynamicAnnualTotal,
+            service_years: Math.floor(serviceYears),
+            annual_leave: {
+                total: dynamicAnnualTotal,
+                used: balance.annual_leave_used || 0,
+                remaining: dynamicAnnualTotal - (balance.annual_leave_used || 0),
+                pay_rate: 1.0
+            },
+            emergency_leave: {
+                total: balance.emergency_leave_total || 10,
+                used: balance.emergency_leave_used || 0,
+                remaining: (balance.emergency_leave_total || 10) - (balance.emergency_leave_used || 0),
+                pay_rate: 1.0
+            },
+            sick_leave: {
+                total: balance.sick_leave_total || 120,
+                used: sickUsed,
+                remaining: (balance.sick_leave_total || 120) - sickUsed,
+                tiers: [
+                    { label: '100% Pay', label_ar: 'راتب كامل 100%', days: fullPayDays, used: tier1Used, remaining: fullPayDays - tier1Used, pay_rate: 1.0 },
+                    { label: '75% Pay', label_ar: 'راتب 75%', days: seventyFivePayDays, used: tier2Used, remaining: seventyFivePayDays - tier2Used, pay_rate: 0.75 },
+                    { label: '50% Pay', label_ar: 'راتب 50%', days: fiftyPayDays, used: tier3Used, remaining: fiftyPayDays - tier3Used, pay_rate: 0.50 },
+                    { label: 'HR Decision', label_ar: 'قرار الموارد البشرية', days: null, used: Math.max(0, sickUsed - fullPayDays - seventyFivePayDays - fiftyPayDays), remaining: null, pay_rate: 0 }
+                ]
+            }
+        });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

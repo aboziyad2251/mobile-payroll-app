@@ -30,7 +30,10 @@ const EMPTY_FORM = {
     days_off_count: 2, day_off_1: 'friday', day_off_2: 'saturday',
     // WPS banking
     national_id: '', iban: '', bank_code: '', bank_name: '',
+    grade: '',
 };
+
+const GRADES = ['Grade 1','Grade 2','Grade 3','Grade 4','Grade 5','Grade 6','Grade 7','Grade 8','Grade 9','Grade 10'];
 
 const SAUDI_BANKS = [
     { name: 'Al Rajhi Bank',          code: '1140' },
@@ -248,6 +251,11 @@ export default function Employees({ role }) {
                                                 <span style={{ background: sm.bg, color: sm.color, fontSize: '0.65rem', fontWeight: 700, borderRadius: 6, padding: '2px 6px' }}>
                                                     {t(`emp.${emp.status}`)}
                                                 </span>
+                                                {emp.grade && (
+                                                    <span style={{ background: 'rgba(99,102,241,0.12)', color: '#6366f1', fontSize: '0.65rem', fontWeight: 700, borderRadius: 6, padding: '2px 6px' }}>
+                                                        {emp.grade}
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
                                         {/* Salary + chevron */}
@@ -431,7 +439,11 @@ export default function Employees({ role }) {
                             <div className="form-row">
                                 <div className="form-group"><label className="form-label">{t('emp.otherAllowance')}</label>
                                     <input className="form-control" type="number" step="0.01" value={form.other_allowance} onChange={e => set('other_allowance', e.target.value)} /></div>
-                                <div />
+                                <div className="form-group"><label className="form-label">{isAr ? 'الدرجة الوظيفية' : 'Employee Grade'}</label>
+                                    <select className="form-control" value={form.grade || ''} onChange={e => set('grade', e.target.value)}>
+                                        <option value="">{isAr ? '— بدون درجة —' : '— No Grade —'}</option>
+                                        {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
+                                    </select></div>
                             </div>
 
                             {/* WPS / Banking Info */}

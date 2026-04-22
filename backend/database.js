@@ -27,6 +27,7 @@ const initializeDatabase = () => {
       transport_allowance REAL NOT NULL DEFAULT 0,
       other_allowance REAL NOT NULL DEFAULT 0,
       annual_incentive_multiplier REAL NOT NULL DEFAULT 0,
+      grade TEXT DEFAULT NULL, -- e.g. 'Grade 1', 'Grade 2', etc.
       status TEXT NOT NULL DEFAULT 'active', -- 'active', 'terminated', 'suspended'
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
@@ -118,19 +119,36 @@ const initializeDatabase = () => {
       UNIQUE(employee_id, period_month, period_year)
     );
 
-    -- Leaves balance table
+    -- Leaves balance table (Saudi Labor Law compliant)
     CREATE TABLE IF NOT EXISTS leave_balance (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       employee_id INTEGER NOT NULL,
       year INTEGER NOT NULL,
       annual_leave_total INTEGER DEFAULT 21,
       annual_leave_used INTEGER DEFAULT 0,
-      sick_leave_total INTEGER DEFAULT 14,
+      sick_leave_total INTEGER DEFAULT 120,
       sick_leave_used INTEGER DEFAULT 0,
-      emergency_leave_total INTEGER DEFAULT 5,
+      emergency_leave_total INTEGER DEFAULT 10,
       emergency_leave_used INTEGER DEFAULT 0,
+      -- Sick leave tier tracking (Saudi Labor Law Art. 117)
+      sick_leave_full_pay_days INTEGER DEFAULT 30,   -- first 30 days at 100%
+      sick_leave_75_pay_days INTEGER DEFAULT 60,     -- next 60 days at 75%
+      sick_leave_50_pay_days INTEGER DEFAULT 30,     -- next 30 days at 50%
       FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE,
       UNIQUE(employee_id, year)
+    );
+
+    -- Salary ladder table (10-year grade schedule)
+    CREATE TABLE IF NOT EXISTS salary_ladder (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      grade TEXT NOT NULL,
+      year_number INTEGER NOT NULL,
+      min_salary REAL NOT NULL DEFAULT 0,
+      max_salary REAL NOT NULL DEFAULT 0,
+      annual_increment REAL NOT NULL DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(grade, year_number)
     );
 
     -- Settings table
@@ -149,6 +167,25 @@ const initializeDatabase = () => {
       ('recognition_threshold', '85'),
       ('working_days_per_month', '22');
   `);
+
+  // Migrations for existing databases
+  const runMigrations = () => {
+    const cols = db.prepare("PRAGMA table_info(employees)").all().map(c => c.name);
+    if (!cols.includes('grade')) {
+      db.exec("ALTER TABLE employees ADD COLUMN grade TEXT DEFAULT NULL");
+    }
+
+    const leaveCols = db.prepare("PRAGMA table_info(leave_balance)").all().map(c => c.name);
+    if (!leaveCols.includes('sick_leave_full_pay_days')) {
+      db.exec("ALTER TABLE leave_balance ADD COLUMN sick_leave_full_pay_days INTEGER DEFAULT 30");
+      db.exec("ALTER TABLE leave_balance ADD COLUMN sick_leave_75_pay_days INTEGER DEFAULT 60");
+      db.exec("ALTER TABLE leave_balance ADD COLUMN sick_leave_50_pay_days INTEGER DEFAULT 30");
+    }
+    // Update old records to Saudi Labor Law defaults
+    db.exec("UPDATE leave_balance SET sick_leave_total = 120 WHERE sick_leave_total = 14");
+    db.exec("UPDATE leave_balance SET emergency_leave_total = 10 WHERE emergency_leave_total = 5");
+  };
+  runMigrations();
 };
 
 initializeDatabase();

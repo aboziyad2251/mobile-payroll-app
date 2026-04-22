@@ -190,12 +190,13 @@ const generatePayslipPDF = (employee, payroll, settings, filename) => {
         doc.moveTo(50, 130).lineTo(doc.page.width - 50, 130).strokeColor(COLORS.border).lineWidth(1).stroke();
 
         // Employee Info
-        doc.rect(50, 140, doc.page.width - 100, 90).fill(COLORS.lightBg);
+        doc.rect(50, 140, doc.page.width - 100, 108).fill(COLORS.lightBg);
         const infoY = 145;
         drawSection(doc, 'Employee Name', `${employee.first_name} ${employee.last_name}`, infoY);
         drawSection(doc, 'Employee ID', employee.employee_number, infoY + 18);
         drawSection(doc, 'Department', employee.department, infoY + 36);
         drawSection(doc, 'Position', employee.position, infoY + 54);
+        drawSection(doc, 'Grade', employee.grade || '—', infoY + 72);
 
         // Earnings table
         const tableY = 245;
